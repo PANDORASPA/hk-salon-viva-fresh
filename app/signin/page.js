@@ -1,5 +1,4 @@
 import Link from 'next/link'
-import './signin.css'
 
 export const metadata = { title: '登入 | SALON POKE BY VIVA' }
 

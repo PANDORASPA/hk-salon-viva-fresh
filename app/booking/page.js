@@ -2,6 +2,7 @@ import { getServerClient } from '../../lib/supabase/server'
 import BookingForm from './BookingForm'
 import { defaultServices } from '../../content/salon-poke-defaults'
 
+export const dynamic = 'force-dynamic'
 export const metadata = { title: '預約 | SALON POKE BY VIVA' }
 
 export default async function BookingPage() {

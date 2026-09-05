@@ -2,8 +2,8 @@ import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { getServerClient } from '../../lib/supabase/server'
 import SignOutButton from './SignOutButton'
-import './account.css'
 
+export const dynamic = 'force-dynamic'
 export const metadata = { title: '我的帳戶 | SALON POKE BY VIVA' }
 
 export default async function AccountPage() {

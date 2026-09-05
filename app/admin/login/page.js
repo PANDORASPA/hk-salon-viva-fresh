@@ -1,7 +1,8 @@
 import { redirect } from 'next/navigation'
 import { getServerClient } from '../../../lib/supabase/server'
-import AdminShell from '../../AdminShell'
+import AdminShell from '../AdminShell'
 
+export const dynamic = 'force-dynamic'
 export const metadata = { title: '管理員登入 | SALON POKE BY VIVA' }
 
 export default async function AdminLoginPage() {
