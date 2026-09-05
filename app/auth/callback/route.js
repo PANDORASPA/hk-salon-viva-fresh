@@ -1,0 +1,4 @@
+import { NextResponse } from 'next/server'
+import { getServerClient } from '../../../lib/supabase/server'
+const safe=(value)=>value?.startsWith('/')&&!value.startsWith('//')?value:'/account'
+export async function GET(request){const url=new URL(request.url),next=safe(url.searchParams.get('next'));try{const db=await getServerClient(),code=url.searchParams.get('code'),token_hash=url.searchParams.get('token_hash'),type=url.searchParams.get('type');if(code){const {error}=await db.auth.exchangeCodeForSession(code);if(error)throw error}else if(token_hash&&type){const {error}=await db.auth.verifyOtp({token_hash,type});if(error)throw error}const {data:{user}}=await db.auth.getUser();if(!user)throw new Error('No session');await db.from('profiles').upsert({id:user.id},{onConflict:'id'});return NextResponse.redirect(new URL(next,url.origin))}catch{return NextResponse.redirect(new URL('/signin?message=confirm_failed',url.origin))}}

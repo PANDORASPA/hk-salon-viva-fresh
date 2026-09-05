@@ -1,0 +1,6 @@
+import { NextResponse } from 'next/server'
+import { revalidatePath } from 'next/cache'
+import { adminContext,audit,jsonError } from '../../../../lib/admin/salon-api'
+import { guardMutationRequest } from '../../../../lib/security/request-guards'
+export async function GET(){const context=await adminContext();if(context.response)return context.response;const {data,error}=await context.db.from('site_content').select('data,updated_at').eq('id',1).single();return error?jsonError(error):NextResponse.json({content:data})}
+export async function PATCH(request){const guard=await guardMutationRequest(request,{rateLimit:{scope:'admin.site-content',limit:20,windowMs:60_000}});if(guard)return guard;const context=await adminContext();if(context.response)return context.response;const body=await request.json(),data=body?.data;if(!data||Array.isArray(data)||typeof data!=='object'||JSON.stringify(data).length>50000)return jsonError('Invalid site content.',400);const {data:row,error}=await context.db.from('site_content').update({data,updated_by:context.auth.user.id}).eq('id',1).select().single();if(error)return jsonError(error);await audit(context.db,context.auth.user,'site-content.update','site_content',1);revalidatePath('/','layout');return NextResponse.json({content:row})}

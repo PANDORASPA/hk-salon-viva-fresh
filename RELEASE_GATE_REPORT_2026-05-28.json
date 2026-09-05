@@ -1,0 +1,177 @@
+{
+  "generatedAt": "2026-04-28T14:06:46.617Z",
+  "baseUrl": "http://localhost:3000",
+  "seeds": {
+    "member_user_id": "5743c2f5-d506-4d40-b0e1-b85188dee2cd",
+    "outsider_user_id": "40ae6b94-e4a3-4e54-a142-a7c987ad33b3",
+    "admin_user_id": "2254f67d-fe70-4c79-af3b-fd93b4053063",
+    "location_id": 8,
+    "provider_group_id": 6,
+    "resource_id": 6,
+    "create_booking_id": 82,
+    "ticket_booking_id": 83,
+    "user_ticket_id": 9,
+    "primary_staff_id": 3,
+    "secondary_staff_id": 4
+  },
+  "checks": {
+    "booking_create_success": {
+      "status": "pass",
+      "response_status": 200,
+      "booking_id": 82,
+      "appointment_date": "2026-06-05",
+      "start_time": "09:00:00",
+      "end_time": "10:00:00",
+      "buffer_end_time": "10:00:00",
+      "location_id": null,
+      "provider_group_id": null,
+      "allocation_count": 1
+    },
+    "booking_create_duplicate_conflict": {
+      "status": "pass",
+      "response_status": 409,
+      "response_code": "buffer_collision",
+      "response_error": "This slot collides with an existing booking, buffer, break, or blocked period."
+    },
+    "booking_create_resource_full": {
+      "status": "pass",
+      "response_status": 409,
+      "response_code": "resource_full",
+      "response_error": "Required resources are fully booked for this time slot."
+    },
+    "reschedule_self_exclusion": {
+      "status": "pass",
+      "response_status": 200,
+      "booking_id": 82,
+      "appointment_date": "2026-06-05",
+      "start_time": "09:00:00",
+      "allocation_count": 1
+    },
+    "reschedule_success_allocation_rebuild": {
+      "status": "pass",
+      "response_status": 200,
+      "before_snapshot": {
+        "appointment_date": "2026-06-05",
+        "start_time": "09:00:00",
+        "allocation_count": 1
+      },
+      "after_snapshot": {
+        "appointment_date": "2026-06-06",
+        "start_time": "10:00:00",
+        "allocation_count": 1
+      }
+    },
+    "reschedule_rollback_failure": {
+      "status": "pass",
+      "artifact": "forced_allocation_failure_header",
+      "response_status": 500,
+      "response_code": "resource_full",
+      "response_error": "Smoke-forced resource allocation failure.",
+      "rollback_verified": true,
+      "before_snapshot": {
+        "appointment_date": "2026-06-06",
+        "start_time": "10:00:00",
+        "allocation_count": 1
+      },
+      "after_snapshot": {
+        "appointment_date": "2026-06-06",
+        "start_time": "10:00:00",
+        "allocation_count": 1
+      },
+      "restore_details": {
+        "stage": "forced_allocation_failure",
+        "rollbackVerified": true,
+        "evidence": {
+          "smokeForced": true
+        }
+      }
+    },
+    "account_cancel_ticket_restore": {
+      "status": "pass",
+      "response_status": 200,
+      "booking_id": 83,
+      "remaining_before_cancel": 1,
+      "remaining_after_cancel": 2
+    },
+    "account_ownership_denial": {
+      "status": "pass",
+      "response_status": 404,
+      "response_error": "Booking not found."
+    },
+    "auth_admin_guard": {
+      "status": "pass",
+      "unauth_admin": {
+        "status": 307,
+        "location": "/admin/login?redirectTo=%2Fadmin"
+      },
+      "member_admin": {
+        "status": 307,
+        "location": "/admin/login?redirectTo=%2Fadmin"
+      },
+      "admin_access": {
+        "status": 200,
+        "location": null
+      },
+      "unauth_account": {
+        "status": 307,
+        "location": "/login?redirectTo=%2Faccount%2Fbookings"
+      },
+      "member_account": {
+        "status": 200,
+        "location": null
+      }
+    }
+  },
+  "release_decision": "GO",
+  "blocking_findings": [],
+  "known_p2": [],
+  "known_p3": [],
+  "evidence_checked": [
+    {
+      "name": "booking_create_success",
+      "status": "pass",
+      "response_status": 200
+    },
+    {
+      "name": "booking_create_duplicate_conflict",
+      "status": "pass",
+      "response_status": 409
+    },
+    {
+      "name": "booking_create_resource_full",
+      "status": "pass",
+      "response_status": 409
+    },
+    {
+      "name": "reschedule_self_exclusion",
+      "status": "pass",
+      "response_status": 200
+    },
+    {
+      "name": "reschedule_success_allocation_rebuild",
+      "status": "pass",
+      "response_status": 200
+    },
+    {
+      "name": "reschedule_rollback_failure",
+      "status": "pass",
+      "response_status": 500
+    },
+    {
+      "name": "account_cancel_ticket_restore",
+      "status": "pass",
+      "response_status": 200
+    },
+    {
+      "name": "account_ownership_denial",
+      "status": "pass",
+      "response_status": 404
+    },
+    {
+      "name": "auth_admin_guard",
+      "status": "pass",
+      "response_status": null
+    }
+  ],
+  "next_fix_round_needed": "no"
+}

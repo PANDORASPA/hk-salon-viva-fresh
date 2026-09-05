@@ -1,0 +1,22 @@
+{
+  "generatedAt": "2026-04-27T15:50:26.367Z",
+  "baseUrl": "http://localhost:3001",
+  "checks": {},
+  "release_decision": "NO-GO",
+  "blocking_findings": [
+    {
+      "name": "script_execution",
+      "response_status": null,
+      "response_code": "unexpected_server_error"
+    }
+  ],
+  "known_p2": [],
+  "known_p3": [],
+  "evidence_checked": [],
+  "next_fix_round_needed": "yes",
+  "failure": {
+    "message": "Create smoke failed unexpectedly: {\"error\":\"Cannot create a booking in the past.\"}",
+    "diagnostic_category": "unexpected_server_error",
+    "details": null
+  }
+}

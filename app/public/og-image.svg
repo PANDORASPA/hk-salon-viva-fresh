@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630">
+  <rect width="1200" height="630" fill="#f7f3ec"/>
+  <rect x="0" y="0" width="1200" height="630" fill="url(#grad)"/>
+  <defs>
+    <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#f7f3ec;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#ede6d9;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  <text x="600" y="260" font-family="Georgia,serif" font-size="80" font-weight="600" fill="#2c2826" text-anchor="middle">SALON POKE</text>
+  <text x="600" y="330" font-family="Georgia,serif" font-size="40" fill="#a98152" text-anchor="middle">BY VIVA</text>
+  <text x="600" y="400" font-family="sans-serif" font-size="28" fill="#706961" text-anchor="middle">爆毛術脫髮護理 · 香港</text>
+  <rect x="520" y="430" width="160" height="4" rx="2" fill="#a98152"/>
+</svg>

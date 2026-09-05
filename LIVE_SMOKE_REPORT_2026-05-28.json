@@ -1,0 +1,310 @@
+{
+  "generatedAt": "2026-04-28T14:05:07.987Z",
+  "baseUrl": "http://localhost:3000",
+  "report_version": 3,
+  "seeds": {
+    "location_id": 7,
+    "provider_group_id": 7,
+    "resource_id": 7,
+    "booking_id": 80,
+    "order_id": 6,
+    "transaction_id": 3,
+    "customer_id": 3,
+    "holiday_id": 18,
+    "user_ticket_id": 4,
+    "staff_id": 3
+  },
+  "controlled_booking_flow": {
+    "status": "pass",
+    "booking_id": 81,
+    "create_date": "2026-06-05",
+    "reschedule_date": "2026-06-06",
+    "create_slot": "11:00",
+    "reschedule_slot": "09:00",
+    "ticket_id": 10,
+    "create_pass": true,
+    "reschedule_pass": true,
+    "cancel_pass": true
+  },
+  "controlled_booking_evidence": {
+    "create": {
+      "request": {
+        "date": "2026-06-05",
+        "start_time": "11:00",
+        "location_id": 7,
+        "provider_group_id": 7,
+        "staff_id": 3,
+        "user_ticket_id": 10
+      },
+      "response_status": 200,
+      "response_code": null,
+      "diagnostic_category": "unexpected_server_error",
+      "auth_probe": {
+        "status": 200,
+        "location": null,
+        "valid": true
+      },
+      "booking_id": 81,
+      "before_snapshot": null,
+      "after_snapshot": {
+        "appointment_date": "2026-06-05",
+        "start_time": "11:00:00",
+        "end_time": "12:00:00",
+        "buffer_end_time": "12:00:00",
+        "location_id": null,
+        "provider_group_id": null,
+        "allocation_count": 1
+      },
+      "status": "pass"
+    },
+    "reschedule": {
+      "request": {
+        "date": "2026-06-06",
+        "start_time": "09:00",
+        "location_id": 7,
+        "provider_group_id": 7,
+        "staff_id": 3,
+        "user_ticket_id": 10
+      },
+      "response_status": 200,
+      "response_code": null,
+      "diagnostic_category": "unexpected_server_error",
+      "booking_id": 81,
+      "before_snapshot": {
+        "appointment_date": "2026-06-05",
+        "start_time": "11:00:00",
+        "allocation_count": 1
+      },
+      "after_snapshot": {
+        "appointment_date": "2026-06-06",
+        "start_time": "09:00:00",
+        "allocation_count": 1
+      },
+      "status": "pass"
+    },
+    "cancel": {
+      "request": {
+        "booking_id": 81
+      },
+      "response_status": 200,
+      "response_code": null,
+      "diagnostic_category": "unexpected_server_error",
+      "booking_id": 81,
+      "before_snapshot": {
+        "appointment_date": "2026-06-06",
+        "start_time": "09:00:00",
+        "status": "pending",
+        "allocation_count": 1
+      },
+      "after_snapshot": {
+        "appointment_date": "2026-06-06",
+        "start_time": "09:00:00",
+        "status": "cancelled",
+        "allocation_count": 1
+      },
+      "ticket_before_cancel": {
+        "remaining_count": 1
+      },
+      "ticket_after_cancel": {
+        "remaining_count": 2
+      },
+      "status": "pass"
+    }
+  },
+  "checks": {
+    "controlled_booking_create": {
+      "status": "pass",
+      "request": {
+        "date": "2026-06-05",
+        "start_time": "11:00",
+        "location_id": 7,
+        "provider_group_id": 7,
+        "staff_id": 3,
+        "user_ticket_id": 10
+      },
+      "response_status": 200,
+      "response_code": null,
+      "diagnostic_category": "unexpected_server_error",
+      "auth_probe": {
+        "status": 200,
+        "location": null,
+        "valid": true
+      },
+      "booking_id": 81,
+      "before_snapshot": null,
+      "after_snapshot": {
+        "appointment_date": "2026-06-05",
+        "start_time": "11:00:00",
+        "end_time": "12:00:00",
+        "buffer_end_time": "12:00:00",
+        "location_id": null,
+        "provider_group_id": null,
+        "allocation_count": 1
+      }
+    },
+    "controlled_booking_reschedule": {
+      "status": "pass",
+      "request": {
+        "date": "2026-06-06",
+        "start_time": "09:00",
+        "location_id": 7,
+        "provider_group_id": 7,
+        "staff_id": 3,
+        "user_ticket_id": 10
+      },
+      "response_status": 200,
+      "response_code": null,
+      "diagnostic_category": "unexpected_server_error",
+      "booking_id": 81,
+      "before_snapshot": {
+        "appointment_date": "2026-06-05",
+        "start_time": "11:00:00",
+        "allocation_count": 1
+      },
+      "after_snapshot": {
+        "appointment_date": "2026-06-06",
+        "start_time": "09:00:00",
+        "allocation_count": 1
+      }
+    },
+    "controlled_booking_cancel": {
+      "status": "pass",
+      "request": {
+        "booking_id": 81
+      },
+      "response_status": 200,
+      "response_code": null,
+      "diagnostic_category": "unexpected_server_error",
+      "booking_id": 81,
+      "before_snapshot": {
+        "appointment_date": "2026-06-06",
+        "start_time": "09:00:00",
+        "status": "pending",
+        "allocation_count": 1
+      },
+      "after_snapshot": {
+        "appointment_date": "2026-06-06",
+        "start_time": "09:00:00",
+        "status": "cancelled",
+        "allocation_count": 1
+      },
+      "ticket_before_cancel": {
+        "remaining_count": 1
+      },
+      "ticket_after_cancel": {
+        "remaining_count": 2
+      }
+    },
+    "bookings_detail_seed_ready": {
+      "status": "pass",
+      "booking_location_id": 7,
+      "booking_provider_group_id": 7,
+      "allocation_quantity": 1,
+      "linked_order_ref": "SMOKE-ORD-20260528",
+      "linked_transaction_ref": "SMOKE-TX-20260528"
+    },
+    "transaction_edit_save_roundtrip": {
+      "status": "pass",
+      "before": "Smoke seed created",
+      "after": "Smoke roundtrip 2026-04-28T14:04:34.938Z",
+      "booking_id": 80,
+      "order_id": 6
+    },
+    "customer_operational_seed_ready": {
+      "status": "pass",
+      "customer_name": "12133",
+      "user_ticket_id": 4,
+      "transaction_id": 3,
+      "order_id": 6,
+      "booking_id": 80
+    },
+    "availability_resource_full": {
+      "status": "pass",
+      "slot_tested": "09:00",
+      "baseline_slots": [
+        "09:00",
+        "09:30",
+        "10:00",
+        "10:30",
+        "11:00",
+        "11:30",
+        "12:00",
+        "12:30",
+        "13:00",
+        "13:30",
+        "14:00",
+        "14:30",
+        "15:00",
+        "15:30",
+        "16:00",
+        "16:30",
+        "17:00"
+      ],
+      "after_slots": [
+        "10:00",
+        "10:30",
+        "11:00",
+        "11:30",
+        "12:00",
+        "12:30",
+        "13:00",
+        "13:30",
+        "14:00",
+        "14:30",
+        "15:00",
+        "15:30",
+        "16:00",
+        "16:30",
+        "17:00"
+      ],
+      "baseline_status": 200,
+      "after_status": 200,
+      "baseline_error": null,
+      "after_error": null,
+      "diagnostic_category": "unexpected_server_error"
+    },
+    "holiday_provider_group_enforcement": {
+      "status": "pass",
+      "baseline_slots": [
+        "10:00",
+        "10:30",
+        "11:00",
+        "11:30",
+        "12:00",
+        "12:30",
+        "13:00",
+        "13:30",
+        "14:00",
+        "14:30",
+        "15:00",
+        "15:30",
+        "16:00",
+        "16:30",
+        "17:00"
+      ],
+      "after_slots": [],
+      "baseline_status": 200,
+      "after_status": 200,
+      "baseline_error": null,
+      "after_error": null,
+      "diagnostic_category": "unexpected_server_error"
+    }
+  },
+  "evidence_checked": [
+    {
+      "name": "controlled_booking_create",
+      "status": "pass",
+      "response_status": 200
+    },
+    {
+      "name": "controlled_booking_reschedule",
+      "status": "pass",
+      "response_status": 200
+    },
+    {
+      "name": "controlled_booking_cancel",
+      "status": "pass",
+      "response_status": 200
+    }
+  ]
+}
