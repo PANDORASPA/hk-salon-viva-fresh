@@ -27,6 +27,10 @@ const securityHeaders = [
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  // Disable Turbopack for production builds - use webpack instead
+  experimental: {
+    turbo: undefined,
+  },
   async headers() {
     return [
       {

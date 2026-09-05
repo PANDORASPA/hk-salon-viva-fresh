@@ -1,0 +1,13 @@
+{
+  "framework": "nextjs",
+  "buildCommand": "pnpm run build",
+  "outputDirectory": ".next",
+  "installCommand": "pnpm install",
+  "devCommand": "pnpm run dev",
+  "regions": ["iad1"],
+  "functions": {
+    "app/**/*": {
+      "maxDuration": 300
+    }
+  }
+}
