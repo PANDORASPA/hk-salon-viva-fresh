@@ -13,8 +13,8 @@ export default async function AccountPage() {
   // Fetch WhatsApp from site content
   let whatsapp = '852XXXXXXXX'
   try {
-    const { data: sc } = await db.from('site_content').select('content').eq('key', 'public').maybeSingle()
-    if (sc?.content?.contact?.whatsapp) whatsapp = sc.content.contact.whatsapp
+    const { data: sc } = await db.from('site_content').select('data').eq('id', 1).maybeSingle()
+    if (sc?.data?.contact?.whatsapp) whatsapp = sc.data.contact.whatsapp
   } catch (_) {}
 
   return (

@@ -9,7 +9,7 @@ export default function AboutPage() {
       <header className="salon-nav">
         <div className="salon-wrap">
           <nav>
-            <Link href="/">SALON POKE</Link>
+            <Link href="/">主頁</Link>
             <Link href="/services">服務</Link>
             <Link href="/booking">預約</Link>
             <Link href="/gallery">圖庫</Link>

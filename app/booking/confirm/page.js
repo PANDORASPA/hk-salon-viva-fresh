@@ -24,7 +24,7 @@ export default async function BookingConfirmPage({ searchParams }) {
   if (params.id) {
     const { data } = await db
       .from('appointments')
-      .select('*, customer_packages(packages(name)))')
+      .select('*, customer_packages(packages(name))')
       .eq('id', Number(params.id))
       .maybeSingle()
     appointment = data
