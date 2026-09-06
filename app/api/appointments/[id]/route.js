@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { getServiceClient } from '../../../lib/supabase/service'
+import { getServiceClient } from '../../../../lib/supabase/service'
 
 export async function PATCH(request, { params }) {
   const id = Number(params.id)

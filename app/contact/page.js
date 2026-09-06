@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { getPublicSalonContent } from '../../lib/content/public-content'
-import ContactForm from '../../components/ContactForm'
+import ContactForm from '../components/ContactForm'
 import Footer from '../components/Footer'
 
 export const dynamic = 'force-dynamic'
