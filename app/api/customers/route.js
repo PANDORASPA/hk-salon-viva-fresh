@@ -8,7 +8,7 @@ export async function GET(request) {
   const db = getServiceClient()
   const { data, error } = await db
     .from('customers')
-    .select('id, name, phone, email, customer_packages(id, sessions_remaining, total_sessions, is_active, expires_at, packages(name, colour_hex))')
+    .select('id, name, phone, email, customer_packages(id, sessions_remaining, total_sessions, is_active, expires_at, packages(name, colour_hex, package_services(service_id)))')
     .eq('phone', phone.trim())
     .limit(5)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })

@@ -17,7 +17,7 @@ const salonDefaults = {
       "超過20年專業經驗，專精剪髮、染髮、電髮、離子夾及頭髮修護。我們專注為亞洲髮質提供量身訂造的護理方案，在私密的香港市中心工作室為你服務。",
   },
   contact: {
-    whatsapp: "852XXXXXXXX",
+    whatsapp: "852XXXXXXXX", // TODO: 請提供真實 WhatsApp 號碼
     phone: "852XXXXXXXX",
     email: "info@salonpokeviva.com",
     instagram: "",

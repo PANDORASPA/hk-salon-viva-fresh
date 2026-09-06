@@ -54,6 +54,7 @@ function balanceColor(remaining, total) {
 // ── Customers ──────────────────────────────────────────────
 export function CustomersModule() {
   const r = useResource('/api/admin/customers', 'customers')
+  const [search, setSearch] = useState('')
   const [detail, setDetail] = useState(null)
   const [pkgForm, setPkgForm] = useState({ customer_id: '', package_id: '', total_sessions: '' })
   const [pkgOptions, setPkgOptions] = useState([])
@@ -107,9 +108,20 @@ export function CustomersModule() {
           <Btn type="submit">儲存</Btn>
         </form>
       )}
+      <div style={{ marginBottom: 12 }}>
+        <input
+          type="search"
+          placeholder="搜尋姓名或電話…"
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          style={{ padding: '7px 12px', border: '1.5px solid #e0d8cc', borderRadius: 6, fontSize: 14, width: 280 }}
+        />
+      </div>
       <State {...r}>
         <div className="admin-list">
-          {r.rows.map(c => (
+          {r.rows.filter(c =>
+            !search || c.name?.toLowerCase().includes(search.toLowerCase()) || c.phone?.includes(search)
+          ).map(c => (
             <article key={c.id}>
               <div>
                 <strong>{c.name}</strong>

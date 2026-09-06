@@ -1,5 +1,6 @@
 'use client'
 import { useState, useEffect, useCallback } from 'react'
+import { useRouter } from 'next/navigation'
 import { getBrowserClient } from '../../lib/supabase/browser'
 
 function balanceColor(remaining, total) {
@@ -9,6 +10,7 @@ function balanceColor(remaining, total) {
 }
 
 export default function BookingForm({ services = [] }) {
+  const router = useRouter()
   const [form, setForm] = useState({
     serviceId: '',
     customerName: '',
@@ -86,6 +88,16 @@ export default function BookingForm({ services = [] }) {
 
   const handlePhoneBlur = () => lookupCustomer(form.customerPhone)
 
+  // Update linkedServices when selected package changes
+  useEffect(() => {
+    if (selectedPkg?.package_services) {
+      const ids = selectedPkg.package_services.map(ps => ps.service_id).filter(Boolean)
+      setLinkedServices(ids)
+    } else {
+      setLinkedServices([])
+    }
+  }, [selectedPkg])
+
   const handlePackageChange = (pkgId) => {
     setForm(f => ({ ...f, customerPackageId: pkgId, serviceId: '' }))
   }
@@ -112,10 +124,8 @@ export default function BookingForm({ services = [] }) {
       })
       const d = await r.json()
       if (!r.ok) throw new Error(d.error || '預約失敗，請稍後再試。')
-      setMessage('✅ 預約成功！我們會盡快確認。')
-      setForm({ serviceId: '', customerName: '', customerPhone: '', customerEmail: '', startsAt: '', customerId: '', customerPackageId: '' })
-      setCustomerFound(null)
-      setCustomerPackages([])
+      const aptId = d.appointment?.id
+      router.push(aptId ? `/booking/confirm?id=${aptId}` : '/booking/confirm')
     } catch (e) {
       setError(e.message)
     } finally {
