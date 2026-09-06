@@ -24,6 +24,7 @@ export default function Navbar({ salon }) {
       </button>
       <nav id="salon-nav" className={open ? 'salon-nav open' : 'salon-nav'} aria-label="Primary navigation">
         {links.map(([href, label]) => <Link key={href} href={href} className={active(href) ? 'active' : ''} onClick={() => setOpen(false)}>{label}</Link>)}
+        <Link href="/booking/policy" onClick={() => setOpen(false)} style={{ fontSize: 13, color: 'var(--text-muted)' }}>預約政策</Link>
         <Link href="/signin" onClick={() => setOpen(false)}>Sign in</Link>
         <Link href="/booking" className="salon-pill" onClick={() => setOpen(false)}>Book Now</Link>
       </nav>

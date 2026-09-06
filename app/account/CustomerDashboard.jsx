@@ -43,6 +43,8 @@ export default function CustomerDashboard({ whatsapp }) {
   const upcoming = data?.customer_packages || []
   const pastThreshold = new Date(now.getTime() - 24 * 60 * 60 * 1000)
 
+  const cancelLink = (id) => `/account/bookings/${id}/cancel?id=${id}`
+
   return (
     <div>
       <header style={{ marginBottom: 32 }}>
@@ -113,6 +115,46 @@ export default function CustomerDashboard({ whatsapp }) {
                   </div>
                 )
               })
+            )}
+          </div>
+
+          {/* Appointments */}
+          <div className="dashboard-section">
+            <div className="dashboard-section-header">
+              <span style={{ fontSize: 20 }}>📅</span>
+              <h2>我的預約</h2>
+            </div>
+            {data._appointments?.length ? (
+              data._appointments.map(appt => {
+                const isPast = new Date(appt.starts_at) < pastThreshold
+                const isCancellable = ['pending', 'confirmed'].includes(appt.status) && !isPast
+                const pkgName = appt.customer_packages?.packages?.name
+                return (
+                  <div key={appt.id} className={`appt-card ${isPast ? 'past' : ''}`}>
+                    <div className="appt-info">
+                      <strong>{appt.services?.name || '服務'}</strong>
+                      <p className="appt-time">{hkDate(appt.starts_at)} · {appt.services?.duration_minutes}分鐘</p>
+                      {pkgName && <span className="appt-tag">🎫 {pkgName}</span>}
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
+                      <span className={`status-badge status-${appt.status === 'no_show' ? 'no_show' : appt.status}`}>
+                        {statusLabel(appt.status)}
+                      </span>
+                      {isCancellable && (
+                        <Link href={`/account/bookings/${appt.id}/cancel?id=${appt.id}`}
+                          style={{ fontSize: 12, color: '#ef4444', textDecoration: 'underline' }}>
+                          取消預約
+                        </Link>
+                      )}
+                    </div>
+                  </div>
+                )
+              })
+            ) : (
+              <div className="empty-state">
+                <p>暫無預約記錄。</p>
+                <Link href="/booking" className="salon-button" style={{ marginTop: 12, display: 'inline-block' }}>立即預約</Link>
+              </div>
             )}
           </div>
 
