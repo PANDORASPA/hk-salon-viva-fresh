@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { getServiceClient } from '../../../../lib/supabase/service'
+import { createClient } from '@supabase/supabase-js'
 
 export async function PATCH(request, { params }) {
   const id = Number(params.id)
@@ -14,7 +14,12 @@ export async function PATCH(request, { params }) {
     return NextResponse.json({ error: 'Phone number is required.' }, { status: 400 })
   }
 
-  const db = getServiceClient()
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  if (!supabaseUrl || !supabaseKey) {
+    return NextResponse.json({ error: 'Supabase not configured.' }, { status: 500 })
+  }
+  const db = createClient(supabaseUrl, supabaseKey, { auth: { persistSession: false, autoRefreshToken: false } })
 
   // Verify appointment belongs to this customer
   const { data: appt, error: apptErr } = await db

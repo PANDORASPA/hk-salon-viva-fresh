@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
+import { createClient } from '@supabase/supabase-js'
 import availabilityModule from '../../../lib/booking/salon-availability'
-import { getServiceClient } from '../../../lib/supabase/service'
 const { buildAvailability, hkDateWindow } = availabilityModule
 
 export async function GET(request) {
@@ -10,7 +10,13 @@ export async function GET(request) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date || '') || !Number.isSafeInteger(serviceId) || serviceId < 1) {
     return NextResponse.json({ error: 'Invalid date or service.' }, { status: 400 })
   }
-  const db = getServiceClient()
+
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  if (!supabaseUrl || !supabaseKey) {
+    return NextResponse.json({ error: 'Supabase not configured.' }, { status: 500 })
+  }
+  const db = createClient(supabaseUrl, supabaseKey, { auth: { persistSession: false, autoRefreshToken: false } })
   const weekday = new Date(`${date}T12:00:00Z`).getUTCDay()
   const window = hkDateWindow(date)
 

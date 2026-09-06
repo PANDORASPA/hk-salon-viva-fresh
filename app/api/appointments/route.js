@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { getServiceClient } from '../../../lib/supabase/service'
+import { createClient } from '@supabase/supabase-js'
 import { guardMutationRequest } from '../../../lib/security/request-guards'
 
 export async function POST(request) {
@@ -19,7 +19,12 @@ export async function POST(request) {
     return NextResponse.json({ error: 'Invalid or past booking time.' }, { status: 400 })
   }
 
-  const db = getServiceClient()
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  if (!supabaseUrl || !supabaseKey) {
+    return NextResponse.json({ error: 'Supabase not configured.' }, { status: 500 })
+  }
+  const db = createClient(supabaseUrl, supabaseKey, { auth: { persistSession: false, autoRefreshToken: false } })
 
   // Get service duration
   const { data: svc } = await db.from('services').select('duration_minutes').eq('id', Number(serviceId)).single()
