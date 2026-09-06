@@ -43,3 +43,20 @@ export async function PATCH(request) {
   await audit(ctx.db, ctx.auth.user, 'appointment.update', 'appointments', id, { status: update.status })
   return NextResponse.json({ appointment: data })
 }
+
+export async function DELETE(request) {
+  const ctx = await adminContext()
+  if (ctx.response) return ctx.response
+  const { searchParams } = new URL(request.url)
+  const id = Number(searchParams.get('id'))
+  if (!Number.isSafeInteger(id)) return jsonError('Invalid appointment ID.', 400)
+  // Get appointment to restore package sessions if applicable
+  const { data: appt } = await ctx.db.from('appointments').select('customer_package_id').eq('id', id).single()
+  if (appt?.customer_package_id) {
+    await ctx.db.rpc('add_package_session', { p_customer_package_id: appt.customer_package_id })
+  }
+  const { error } = await ctx.db.from('appointments').delete().eq('id', id)
+  if (error) return jsonError(error)
+  await audit(ctx.db, ctx.auth.user, 'appointment.delete', 'appointments', id)
+  return NextResponse.json({ success: true })
+}

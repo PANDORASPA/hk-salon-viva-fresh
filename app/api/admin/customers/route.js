@@ -28,3 +28,24 @@ export async function POST(request) {
   await audit(ctx.db, ctx.auth.user, 'customer.create', 'customers', data.id)
   return NextResponse.json({ customer: data }, { status: 201 })
 }
+
+export async function DELETE(request) {
+  const ctx = await adminContext()
+  if (ctx.response) return ctx.response
+  const { searchParams } = new URL(request.url)
+  const id = Number(searchParams.get('id'))
+  if (!Number.isSafeInteger(id)) return jsonError('Invalid customer ID.', 400)
+  // Don't delete if has active appointments in future
+  const { data: futureAppts } = await ctx.db
+    .from('appointments')
+    .select('id')
+    .eq('customer_id', id)
+    .neq('status', 'cancelled')
+    .gte('starts_at', new Date().toISOString())
+    .limit(1)
+  if (futureAppts?.length > 0) return jsonError('無法刪除：該客戶有未來的預約記錄。', 400)
+  const { error } = await ctx.db.from('customers').delete().eq('id', id)
+  if (error) return jsonError(error)
+  await audit(ctx.db, ctx.auth.user, 'customer.delete', 'customers', id)
+  return NextResponse.json({ success: true })
+}
