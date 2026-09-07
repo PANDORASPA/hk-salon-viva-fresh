@@ -21,6 +21,9 @@ export default function SigninPage() {
             <AuthForm mode="signin" />
           </Suspense>
           <div style={{ marginTop: 16, textAlign: 'center', fontSize: 14, color: '#706961' }}>
+            <Link href="/forgot" style={{ color: '#a98152' }}>忘記密碼？</Link>
+          </div>
+          <div style={{ marginTop: 12, textAlign: 'center', fontSize: 14, color: '#706961' }}>
             仲未係會員？ <Link href="/signup" style={{ color: '#a98152' }}>建立帳戶</Link>
           </div>
         </div>
