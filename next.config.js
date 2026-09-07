@@ -35,11 +35,36 @@ const securityHeaders = [
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  // Slightly faster production builds: only emit source maps on demand
+  // (CI sets this; local dev is unaffected).
+  productionBrowserSourceMaps: false,
+  poweredByHeader: false,
+  compress: true,
   async headers() {
     return [
       {
         source: '/:path*',
         headers: securityHeaders,
+      },
+      {
+        // Long-lived caching for static assets (Next.js auto-fingerprints them).
+        source: '/_next/static/:path*',
+        headers: [
+          { key: 'Cache-Control', value: 'public, max-age=31536000, immutable' },
+        ],
+      },
+      {
+        // OG image and static svg assets: cache 1 day.
+        source: '/og-image.svg',
+        headers: [
+          { key: 'Cache-Control', value: 'public, max-age=86400, stale-while-revalidate=604800' },
+        ],
+      },
+      {
+        source: '/icon.svg',
+        headers: [
+          { key: 'Cache-Control', value: 'public, max-age=86400, stale-while-revalidate=604800' },
+        ],
       },
     ]
   },

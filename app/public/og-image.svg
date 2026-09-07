@@ -1,14 +1,42 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630">
-  <rect width="1200" height="630" fill="#f7f3ec"/>
-  <rect x="0" y="0" width="1200" height="630" fill="url(#grad)"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" width="1200" height="630">
   <defs>
-    <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" style="stop-color:#f7f3ec;stop-opacity:1" />
-      <stop offset="100%" style="stop-color:#ede6d9;stop-opacity:1" />
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#f7f3ec"/>
+      <stop offset="60%" stop-color="#ede6d9"/>
+      <stop offset="100%" stop-color="#d9cdb6"/>
+    </linearGradient>
+    <linearGradient id="bar" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#a98152"/>
+      <stop offset="100%" stop-color="#8c6b3f"/>
     </linearGradient>
   </defs>
-  <text x="600" y="260" font-family="Georgia,serif" font-size="80" font-weight="600" fill="#2c2826" text-anchor="middle">SALON POKE</text>
-  <text x="600" y="330" font-family="Georgia,serif" font-size="40" fill="#a98152" text-anchor="middle">BY VIVA</text>
-  <text x="600" y="400" font-family="sans-serif" font-size="28" fill="#706961" text-anchor="middle">爆毛術脫髮護理 · 香港</text>
-  <rect x="520" y="430" width="160" height="4" rx="2" fill="#a98152"/>
+  <rect width="1200" height="630" fill="url(#bg)"/>
+
+  <!-- decorative top bar -->
+  <rect x="0" y="0" width="1200" height="6" fill="url(#bar)"/>
+
+  <!-- decorative hair-leaf flourish -->
+  <g transform="translate(940 100)" fill="none" stroke="#a98152" stroke-width="2" opacity="0.35">
+    <path d="M 0 60 C 20 20, 60 0, 100 0 C 60 20, 30 50, 0 100"/>
+    <path d="M 40 80 C 50 50, 70 40, 90 40" stroke-width="1.5"/>
+  </g>
+
+  <!-- Eyebrow tag -->
+  <rect x="180" y="190" width="220" height="34" rx="17" fill="#a98152" opacity="0.12"/>
+  <text x="290" y="213" font-family="Inter, sans-serif" font-size="16" font-weight="500" fill="#8c6b3f" text-anchor="middle" letter-spacing="2">HONG KONG · BY APPOINTMENT</text>
+
+  <!-- Brand name -->
+  <text x="600" y="290" font-family="'Cormorant Garamond', Georgia, serif" font-size="92" font-weight="600" fill="#2c2826" text-anchor="middle" letter-spacing="0.02em">SALON POKE</text>
+  <text x="600" y="345" font-family="'Cormorant Garamond', Georgia, serif" font-size="32" fill="#a98152" text-anchor="middle" letter-spacing="0.32em">BY VIVA</text>
+
+  <!-- Divider -->
+  <rect x="540" y="380" width="120" height="3" rx="1.5" fill="#a98152"/>
+
+  <!-- Tagline -->
+  <text x="600" y="430" font-family="Inter, sans-serif" font-size="28" fill="#4a443e" text-anchor="middle">爆毛術脫髮護理</text>
+  <text x="600" y="470" font-family="Inter, sans-serif" font-size="20" fill="#706961" text-anchor="middle">20+ 年專業經驗 · 亞洲人髮絲專家</text>
+
+  <!-- CTA chip -->
+  <rect x="500" y="510" width="200" height="48" rx="24" fill="url(#bar)"/>
+  <text x="600" y="541" font-family="Inter, sans-serif" font-size="18" font-weight="600" fill="#ffffff" text-anchor="middle" letter-spacing="0.06em">立即預約 BOOK NOW</text>
 </svg>

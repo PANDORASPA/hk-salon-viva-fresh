@@ -1,4 +1,15 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
-  <rect width="64" height="64" rx="8" fill="#a98152"/>
-  <text x="32" y="44" font-family="Georgia,serif" font-size="28" font-weight="600" fill="white" text-anchor="middle">SP</text>
+  <defs>
+    <linearGradient id="brand" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#c4a172"/>
+      <stop offset="100%" stop-color="#8c6b3f"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="12" fill="url(#brand)"/>
+  <g transform="translate(32 32)">
+    <!-- Stylised hair-leaf monogram in cream -->
+    <path d="M -10 8 C -10 -6, -4 -14, 6 -14 C 14 -14, 18 -8, 18 0 C 18 6, 14 10, 8 10 C 4 10, 0 8, -2 6"
+          fill="none" stroke="#f7f3ec" stroke-width="3" stroke-linecap="round"/>
+    <path d="M -6 -10 C -2 -4, 0 0, 0 6" fill="none" stroke="#f7f3ec" stroke-width="2" stroke-linecap="round" opacity="0.6"/>
+  </g>
 </svg>

@@ -16,6 +16,23 @@ export const metadata = {
     siteName: 'SALON POKE BY VIVA',
     title: 'SALON POKE BY VIVA | 爆毛術脫髮護理',
     description: '超過20年專業經驗，專精剪髮、染髮、電髮及頭髮修護。',
+    images: [
+      {
+        url: '/og-image.svg',
+        width: 1200,
+        height: 630,
+        alt: 'SALON POKE BY VIVA · 爆毛術脫髮護理',
+      },
+    ],
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'SALON POKE BY VIVA | 爆毛術脫髮護理',
+    description: '超過20年專業經驗，專精剪髮、染髮、電髮及頭髮修護。',
+    images: ['/og-image.svg'],
+  },
+  alternates: {
+    canonical: siteUrl,
   },
 }
 
