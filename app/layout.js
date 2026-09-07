@@ -19,6 +19,13 @@ export const metadata = {
 
 export const viewport = { width: 'device-width', initialScale: 1 }
 
+// Routes that should NOT be indexed by search engines
+export const robots = {
+  index: true,
+  follow: true,
+  nocache: false,
+}
+
 export default function RootLayout({ children }) {
   return (
     <html lang="zh-HK">
