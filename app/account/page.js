@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { getServerClient } from '../../lib/supabase/server'
 import SignOutButton from './SignOutButton'
+import BookingsClient from './BookingsClient'
 
 export const metadata = { title: '我的帳戶 | SALON POKE BY VIVA' }
 export const dynamic = 'force-dynamic'
@@ -14,7 +15,7 @@ export default async function AccountPage() {
   const [{ data: profile }, { data: appointments }, { data: customerPackages }] = await Promise.all([
     db.from('profiles').select('*').eq('id', user.id).maybeSingle(),
     db.from('appointments')
-      .select('id, starts_at, status, services(name, duration_minutes)')
+      .select('id, starts_at, status, customer_package_id, services(name, duration_minutes)')
       .eq('user_id', user.id)
       .order('starts_at', { ascending: false })
       .limit(50),
@@ -86,25 +87,7 @@ export default async function AccountPage() {
         <h2 className="salon-section-title" style={{ textAlign: 'left', marginBottom: 20, fontSize: 24 }}>
           我的預約
         </h2>
-        {appointments?.length ? (
-          <div className="admin-list">
-            {appointments.map(row => (
-              <article key={row.id}>
-                <div>
-                  <strong>{row.services?.name || '服務'}</strong>
-                  <p>
-                    {row.starts_at
-                      ? new Date(row.starts_at).toLocaleString('zh-HK', { timeZone: 'Asia/Hong_Kong', dateStyle: 'long', timeStyle: 'short' })
-                      : '時間待確認'}
-                  </p>
-                </div>
-                <span className={`status ${row.status || 'pending'}`}>{row.status || 'pending'}</span>
-              </article>
-            ))}
-          </div>
-        ) : (
-          <p style={{ color: '#928a81' }}>暫時沒有預約記錄。</p>
-        )}
+        <BookingsClient initialBookings={appointments || []} />
 
         <div style={{ marginTop: 40, padding: 24, background: '#f7f3ec', borderRadius: 8 }}>
           <h3 style={{ margin: '0 0 12px', fontFamily: 'Georgia,serif' }}>聯絡我們</h3>
