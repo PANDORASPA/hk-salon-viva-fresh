@@ -165,7 +165,7 @@ export async function DELETE(request, { params }) {
   const db = getServiceClient()
   const { data: existing, error: exErr } = await db
     .from('appointments')
-    .select('id, user_id, customer_id, customer_package_id, status')
+    .select('id, user_id, customer_id, customer_package_id, status, starts_at')
     .eq('id', id)
     .maybeSingle()
   if (exErr) return NextResponse.json({ error: exErr.message }, { status: 500 })
@@ -175,6 +175,27 @@ export async function DELETE(request, { params }) {
   }
   if (existing.status === 'cancelled') {
     return NextResponse.json({ booking: existing, alreadyCancelled: true })
+  }
+
+  // Cancellation cutoff: clients must cancel at least N hours ahead.
+  // Default 24h; admin can override per-deploy via CANCEL_CUTOFF_HOURS=0
+  // (disable) or 48 etc.
+  const cutoffHours = Number.isFinite(Number(process.env.CANCEL_CUTOFF_HOURS))
+    ? Number(process.env.CANCEL_CUTOFF_HOURS)
+    : 24
+  if (cutoffHours > 0) {
+    const msUntilStart = new Date(existing.starts_at).getTime() - Date.now()
+    if (msUntilStart < cutoffHours * 3_600_000) {
+      return NextResponse.json(
+        {
+          error: `Cancellation requires at least ${cutoffHours} hours notice. Please contact the salon to cancel late bookings.`,
+          code: 'late_cancellation',
+          cutoffHours,
+          hoursUntilStart: Math.max(0, Math.round(msUntilStart / 3_600_000 * 10) / 10),
+        },
+        { status: 400 },
+      )
+    }
   }
 
   const { data: updated, error: updErr } = await db

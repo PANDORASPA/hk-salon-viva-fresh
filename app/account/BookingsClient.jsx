@@ -22,7 +22,13 @@ export default function BookingsClient({ initialBookings = [] }) {
     try {
       const r = await fetch(`/api/account/bookings/${id}`, { method: 'DELETE' })
       const d = await r.json()
-      if (!r.ok) throw new Error(d.error || '取消失敗')
+      if (!r.ok) {
+        if (d.code === 'late_cancellation') {
+          const hours = d.hoursUntilStart ?? '?'
+          throw new Error(`太遲取消：需最少 ${d.cutoffHours} 小時前通知，呢個預約只餘 ${hours} 小時。請 WhatsApp 我哋處理。`)
+        }
+        throw new Error(d.error || '取消失敗')
+      }
       setItems((prev) => prev.map((b) => (b.id === id ? { ...b, status: 'cancelled' } : b)))
       setMessage(d.packageRefunded ? '已取消，套票次數已退還。' : '已取消。')
       router.refresh()
