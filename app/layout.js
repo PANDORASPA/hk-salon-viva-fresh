@@ -1,4 +1,6 @@
 import './globals.css'
+import { cookies } from 'next/headers'
+import { SUPPORTED_LOCALES, DEFAULT_LOCALE } from '../lib/i18n/dict'
 
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://salonpokeviva.com'
 
@@ -19,7 +21,6 @@ export const metadata = {
 
 export const viewport = { width: 'device-width', initialScale: 1 }
 
-// Routes that should NOT be indexed by search engines
 export const robots = {
   index: true,
   follow: true,
@@ -27,8 +28,17 @@ export const robots = {
 }
 
 export default function RootLayout({ children }) {
+  // Read the lang cookie so the <html lang> attribute matches the
+  // active locale. Falls back to DEFAULT_LOCALE if missing/invalid.
+  let lang = DEFAULT_LOCALE
+  try {
+    const c = cookies().get('lang')?.value
+    if (c && SUPPORTED_LOCALES.includes(c)) lang = c
+  } catch {
+    // cookies() may throw outside a request context
+  }
   return (
-    <html lang="zh-HK">
+    <html lang={lang}>
       <head>
         <link rel="icon" href="/icon.svg" type="image/svg+xml" />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
