@@ -3,27 +3,27 @@ import Footer from '../../components/Footer'
 import { getServerClient } from '../../../lib/supabase/server'
 import { salonDefaults } from '../../../content/salon-poke-defaults'
 import { isStripeMockMode } from '../../../lib/payments/stripe'
+import Nav from '../../components/i18n/Nav'
+import { t } from '../../../lib/i18n/dict'
+import { getLocale } from '../../../lib/i18n/server'
 
 export const metadata = { title: '購買完成 | SALON POKE BY VIVA' }
 export const dynamic = 'force-dynamic'
 
 export default async function PackagesSuccessPage({ searchParams }) {
+  const locale = getLocale()
   const sessionId = searchParams?.session_id
   const errorCode = searchParams?.error
   const whatsapp = salonDefaults.contact.whatsapp
   const mock = isStripeMockMode()
 
-  // In mock mode we synchronously fire the webhook so the user_tickets
-  // row is created before the success page renders. In live mode Stripe
-  // will deliver the webhook asynchronously.
   let ticketId = null
   let fallbackError = null
   if (mock && sessionId) {
     try {
-      // Look up the package from the search params (passed by mock checkout)
       const packageId = searchParams?.package_id
       const customerEmail = searchParams?.email
-      const r = await fetch(`${salonDefaults.contact.website || ''}/api/stripe/webhook`.replace('//api', '/api'), {
+      const r = await fetch(`${process.env.NEXT_PUBLIC_SITE_URL || ''}/api/stripe/webhook`.replace('//api', '/api'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -43,20 +43,18 @@ export default async function PackagesSuccessPage({ searchParams }) {
   if (errorCode) {
     return (
       <div className="salon">
-        <header className="salon-nav">
-          <div className="salon-wrap">
-            <nav>
-              <Link href="/">SALON POKE</Link>
-              <Link href="/packages">套票</Link>
-            </nav>
-          </div>
-        </header>
+        <Nav locale={locale} />
         <main className="salon-wrap salon-section">
-          <h1 className="salon-section-title" style={{ textAlign: 'left', marginBottom: 8, fontSize: 36 }}>付款未完成</h1>
+          <h1 className="salon-section-title" style={{ textAlign: 'left', marginBottom: 8, fontSize: 36 }}>
+            {t('success.errorTitle', locale)}
+          </h1>
           <p style={{ color: '#706961', marginBottom: 24 }}>
-            請重新嘗試：<Link href="/packages">返回套票頁</Link>
+            {locale === 'en' ? 'Please try again: ' : '請重新嘗試：'}
+            <Link href="/packages">{t('success.retry', locale)}</Link>
           </p>
-          <p style={{ color: '#c0392b', fontSize: 13 }}>錯誤代碼：{errorCode}</p>
+          <p style={{ color: '#c0392b', fontSize: 13 }}>
+            {t('success.errorCode', locale)}: {errorCode}
+          </p>
         </main>
         <Footer />
       </div>
@@ -65,40 +63,31 @@ export default async function PackagesSuccessPage({ searchParams }) {
 
   return (
     <div className="salon">
-      <header className="salon-nav">
-        <div className="salon-wrap">
-          <nav>
-            <Link href="/">SALON POKE</Link>
-            <Link href="/packages">套票</Link>
-            <Link href="/booking">預約</Link>
-            <Link href="/account">我的帳戶</Link>
-          </nav>
-        </div>
-      </header>
+      <Nav locale={locale} />
       <main className="salon-wrap salon-section">
         <h1 className="salon-section-title" style={{ textAlign: 'left', marginBottom: 8, fontSize: 36, color: '#27ae60' }}>
-          ✓ 付款成功
+          ✓ {t('success.title', locale)}
         </h1>
         <p style={{ color: '#706961', marginBottom: 24 }}>
-          感謝你購買 SALON POKE BY VIVA 套票。{mock && '（測試模式：mock session，套票已即時發行）'}
+          {t('success.thanks', locale)} {mock && t('success.testNotice', locale)}
         </p>
 
         {sessionId && (
           <div className="admin-list" style={{ marginBottom: 24 }}>
             <article>
               <div>
-                <strong>交易編號</strong>
+                <strong>{t('success.transaction', locale)}</strong>
                 <p style={{ fontFamily: 'monospace', fontSize: 13 }}>{sessionId}</p>
               </div>
-              <span className="status completed">已付款</span>
+              <span className="status completed">{t('success.paid', locale)}</span>
             </article>
             {ticketId && (
               <article>
                 <div>
-                  <strong>套票編號</strong>
+                  <strong>{t('success.ticketId', locale)}</strong>
                   <p style={{ fontFamily: 'monospace', fontSize: 13 }}>#{ticketId}</p>
                 </div>
-                <span className="status confirmed">已發行</span>
+                <span className="status confirmed">{t('success.issued', locale)}</span>
               </article>
             )}
           </div>
@@ -106,24 +95,24 @@ export default async function PackagesSuccessPage({ searchParams }) {
 
         {fallbackError && (
           <div className="form-error" style={{ marginBottom: 16 }}>
-            套票自動發行失敗，請聯絡我哋：{fallbackError}
+            {t('success.failedNotice', locale)}：{fallbackError}
           </div>
         )}
 
         <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 32 }}>
-          <Link className="salon-button" href="/booking">立即預約</Link>
+          <Link className="salon-button" href="/booking">{t('home.cta.book', locale)}</Link>
           <a className="salon-button salon-button-secondary" href={`https://wa.me/${whatsapp}`} target="_blank" rel="noopener">
-            WhatsApp 確認
+            WhatsApp {t('home.cta.whatsapp', locale)}
           </a>
-          <Link className="salon-button salon-button-secondary" href="/account">查看我的套票</Link>
+          <Link className="salon-button salon-button-secondary" href="/account">{t('nav.account', locale)}</Link>
         </div>
 
         <div style={{ marginTop: 40, padding: 24, background: '#f7f3ec', borderRadius: 8 }}>
-          <h3 style={{ margin: '0 0 12px', fontFamily: 'Georgia,serif' }}>溫馨提示</h3>
+          <h3 style={{ margin: '0 0 12px', fontFamily: 'Georgia,serif' }}>{t('confirm.tips.0', locale).slice(0, -1)}</h3>
           <ul style={{ paddingLeft: 20, color: '#706961', lineHeight: 1.8 }}>
-            <li>套票已自動加入你嘅帳戶，可以即時用嚟預約。</li>
-            <li>預約時輸入同一個電話號碼，系統會自動偵測可用套票並扣減一次。</li>
-            <li>如需取消預約，套票次數會自動退還。</li>
+            <li>{t('success.tips.0', locale)}</li>
+            <li>{t('success.tips.1', locale)}</li>
+            <li>{t('success.tips.2', locale)}</li>
           </ul>
         </div>
       </main>
