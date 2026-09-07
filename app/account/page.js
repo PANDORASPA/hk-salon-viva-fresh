@@ -42,6 +42,9 @@ export default async function AccountPage() {
         </p>
         <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 40 }}>
           <Link className="salon-button" href="/booking">{t('account.cta.book', locale)}</Link>
+          <Link className="admin-action" href="/account/profile">
+            {locale === 'en' ? 'Edit profile' : '編輯個人資料'}
+          </Link>
           <SignOutButton />
         </div>
 
