@@ -1,5 +1,6 @@
 'use client'
 import { useState, useEffect, useCallback } from 'react'
+import { useRouter } from 'next/navigation'
 import { getBrowserClient } from '../../lib/supabase/browser'
 
 function balanceColor(remaining, total) {
@@ -9,9 +10,15 @@ function balanceColor(remaining, total) {
 }
 
 export default function BookingForm({ services = [] }) {
+  const router = useRouter()
   const [form, setForm] = useState({
-    serviceId: '', customerName: '', customerPhone: '', customerEmail: '',
-    startsAt: '', customerId: '', customerPackageId: '',
+    serviceId: '',
+    customerName: '',
+    customerPhone: '',
+    customerEmail: '',
+    startsAt: '',
+    customerId: '',
+    customerPackageId: '',
   })
   const [packages, setPackages] = useState([])
   const [customerPackages, setCustomerPackages] = useState([])
@@ -20,11 +27,52 @@ export default function BookingForm({ services = [] }) {
   const [submitting, setSubmitting] = useState(false)
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
+  const [date, setDate] = useState(() => {
+    const d = new Date()
+    d.setDate(d.getDate() + 1)
+    return d.toISOString().slice(0, 10)
+  })
+  const [slots, setSlots] = useState([])
+  const [loadingSlots, setLoadingSlots] = useState(false)
+  const [emptyMsg, setEmptyMsg] = useState('')
 
   // Load active packages on mount
   useEffect(() => {
-    fetch('/api/packages').then(r => r.json()).then(d => setPackages(d.packages || []))
+    fetch('/api/packages')
+      .then((r) => r.json())
+      .then((d) => setPackages(d.packages || []))
   }, [])
+
+  // Load availability for the selected service + date
+  const loadAvailability = useCallback(async () => {
+    if (!form.serviceId || !date) return
+    setLoadingSlots(true)
+    setError('')
+    setSlots([])
+    setForm((f) => ({ ...f, startsAt: '' }))
+    try {
+      const r = await fetch(
+        `/api/availability?date=${date}&serviceId=${form.serviceId}`,
+      )
+      const s = await r.json()
+      if (!r.ok) {
+        setEmptyMsg(s.error || '無法載入時段')
+        return
+      }
+      setSlots(s.slots || [])
+      if (s.slots?.length === 0) {
+        setEmptyMsg('当日无可预约时段，请选择其他日期')
+      }
+    } catch {
+      setEmptyMsg('載入時段失敗')
+    } finally {
+      setLoadingSlots(false)
+    }
+  }, [form.serviceId, date])
+
+  useEffect(() => {
+    loadAvailability()
+  }, [loadAvailability])
 
   // Lookup customer by phone
   const lookupCustomer = useCallback(async (phone) => {
@@ -36,30 +84,40 @@ export default function BookingForm({ services = [] }) {
       if (found) {
         setCustomerFound(found)
         setCustomerPackages(found.customer_packages || [])
-        if (found.name) setForm(f => ({ ...f, customerName: found.name }))
-        if (found.email) setForm(f => ({ ...f, customerEmail: found.email || '' }))
-        setForm(f => ({ ...f, customerId: found.id, customerPackageId: '' }))
+        if (found.name) setForm((f) => ({ ...f, customerName: found.name }))
+        if (found.email)
+          setForm((f) => ({ ...f, customerEmail: found.email || '' }))
+        setForm((f) => ({ ...f, customerId: found.id, customerPackageId: '' }))
       } else {
         setCustomerFound(null)
         setCustomerPackages([])
-        setForm(f => ({ ...f, customerId: '', customerPackageId: '' }))
+        setForm((f) => ({ ...f, customerId: '', customerPackageId: '' }))
       }
-    } catch (_) {}
+    } catch {}
   }, [])
 
-  // When package selected, filter linked services
+  // ⬇️  FIX: declare `selectedPkg` BEFORE the useEffect that depends on it
+  const selectedPkg = customerPackages.find(
+    (cp) => cp.id === Number(form.customerPackageId),
+  )
+
+  // When a package is selected, derive the list of services it covers
   useEffect(() => {
-    if (!form.customerPackageId) { setLinkedServices([]); return }
-    const pkg = customerPackages.find(cp => cp.id === Number(form.customerPackageId))
-    if (pkg?.packages?.package_services) {
-      setLinkedServices(pkg.packages.package_services.map(ps => ps.service_id))
+    if (selectedPkg?.packages?.package_services) {
+      setLinkedServices(
+        selectedPkg.packages.package_services
+          .map((ps) => ps.service_id)
+          .filter(Boolean),
+      )
+    } else {
+      setLinkedServices([])
     }
-  }, [form.customerPackageId, customerPackages])
+  }, [selectedPkg])
 
   const handlePhoneBlur = () => lookupCustomer(form.customerPhone)
 
   const handlePackageChange = (pkgId) => {
-    setForm(f => ({ ...f, customerPackageId: pkgId, serviceId: '' }))
+    setForm((f) => ({ ...f, customerPackageId: pkgId, serviceId: '' }))
   }
 
   const handleSubmit = async (e) => {
@@ -75,7 +133,9 @@ export default function BookingForm({ services = [] }) {
         customerEmail: form.customerEmail.trim() || null,
         startsAt: form.startsAt,
         customerId: form.customerId ? Number(form.customerId) : null,
-        customerPackageId: form.customerPackageId ? Number(form.customerPackageId) : null,
+        customerPackageId: form.customerPackageId
+          ? Number(form.customerPackageId)
+          : null,
       }
       const r = await fetch('/api/appointments', {
         method: 'POST',
@@ -84,10 +144,8 @@ export default function BookingForm({ services = [] }) {
       })
       const d = await r.json()
       if (!r.ok) throw new Error(d.error || '預約失敗，請稍後再試。')
-      setMessage('✅ 預約成功！我們會盡快確認。')
-      setForm({ serviceId: '', customerName: '', customerPhone: '', customerEmail: '', startsAt: '', customerId: '', customerPackageId: '' })
-      setCustomerFound(null)
-      setCustomerPackages([])
+      const id = d.appointment?.id
+      router.push(id ? `/booking/confirm?id=${id}` : '/booking/confirm')
     } catch (e) {
       setError(e.message)
     } finally {
@@ -95,101 +153,272 @@ export default function BookingForm({ services = [] }) {
     }
   }
 
-  const selectedPkg = customerPackages.find(cp => cp.id === Number(form.customerPackageId))
-  const visibleServices = form.customerPackageId && linkedServices.length > 0
-    ? services.filter(s => linkedServices.includes(s.id))
-    : services
+  const visibleServices =
+    form.customerPackageId && linkedServices.length > 0
+      ? services.filter((s) => linkedServices.includes(s.id))
+      : services
+
+  const today = new Date().toISOString().slice(0, 10)
 
   return (
     <form className="booking-form" onSubmit={handleSubmit} noValidate>
-      {error && <p className="form-error" role="alert">{error}</p>}
-      {message && <p className="form-success" role="status">{message}</p>}
+      {error && (
+        <div className="form-error-box">
+          <span>⚠️</span> {error}
+        </div>
+      )}
+      {message && (
+        <div className="form-success-box">✓ {message}</div>
+      )}
 
       {/* Phone lookup */}
-      <div className="form-group">
-        <label htmlFor="customerPhone">電話號碼 *</label>
-        <input
-          id="customerPhone"
-          type="tel"
-          value={form.customerPhone}
-          onChange={e => setForm(f => ({ ...f, customerPhone: e.target.value }))}
-          onBlur={handlePhoneBlur}
-          placeholder="例：91234567"
-          required
-        />
-        {customerFound && (
-          <p className="customer-found">
-            ✓ 找到客戶：{customerFound.name}
-          </p>
-        )}
+      <div className="form-section">
+        <h3 className="form-section-title">📞 客戶資料</h3>
+        <div className="form-group">
+          <label htmlFor="customerPhone">電話號碼 *</label>
+          <input
+            id="customerPhone"
+            type="tel"
+            value={form.customerPhone}
+            onChange={(e) =>
+              setForm((f) => ({ ...f, customerPhone: e.target.value }))
+            }
+            onBlur={() => lookupCustomer(form.customerPhone)}
+            placeholder="例：91234567"
+            required
+          />
+          {customerFound && (
+            <div className="customer-found-badge">
+              ✓ 找到客戶：{customerFound.name}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Package selection */}
       {customerPackages.length > 0 && (
-        <div className="form-group">
-          <label>使用套票（可選）</label>
-          <div className="package-options">
-            <label className="package-option">
-              <input type="radio" name="pkg" value="" checked={!form.customerPackageId} onChange={() => handlePackageChange('')} />
-              <span>不使用套票（自費）</span>
+        <div className="form-section">
+          <h3 className="form-section-title">🎫 使用套票</h3>
+          <div className="package-grid">
+            <label
+              className={`package-card ${
+                !form.customerPackageId ? 'selected' : ''
+              }`}
+              onClick={() => handlePackageChange('')}
+            >
+              <input
+                type="radio"
+                name="pkg"
+                value=""
+                checked={!form.customerPackageId}
+                onChange={() => handlePackageChange('')}
+              />
+              <span className="pkg-name">不使用套票</span>
+              <span className="pkg-sub">自費付款</span>
             </label>
-            {customerPackages.map(cp => (
-              cp.is_active && new Date(cp.expires_at) > new Date() && cp.sessions_remaining > 0 && (
-                <label key={cp.id} className="package-option" style={{ borderLeftColor: cp.packages?.colour_hex || '#a98152' }}>
-                  <input type="radio" name="pkg" value={cp.id} checked={Number(form.customerPackageId) === cp.id} onChange={() => handlePackageChange(cp.id)} />
-                  <span>
-                    <strong>{cp.packages?.name}</strong>
-                    <span style={{ color: balanceColor(cp.sessions_remaining, cp.total_sessions), marginLeft: 8, fontWeight: 600 }}>
-                      {cp.sessions_remaining}/{cp.total_sessions} 次
-                    </span>
+            {customerPackages
+              .filter(
+                (cp) =>
+                  cp.is_active &&
+                  new Date(cp.expires_at) > new Date() &&
+                  cp.sessions_remaining > 0,
+              )
+              .map((cp) => (
+                <label
+                  key={cp.id}
+                  className={`package-card ${
+                    Number(form.customerPackageId) === cp.id ? 'selected' : ''
+                  }`}
+                  style={{
+                    borderLeftColor: cp.packages?.colour_hex || '#a98152',
+                  }}
+                  onClick={() => handlePackageChange(cp.id)}
+                >
+                  <input
+                    type="radio"
+                    name="pkg"
+                    value={cp.id}
+                    checked={Number(form.customerPackageId) === cp.id}
+                    onChange={() => handlePackageChange(cp.id)}
+                  />
+                  <span className="pkg-name">{cp.packages?.name}</span>
+                  <span
+                    className="pkg-sessions"
+                    style={{
+                      color: balanceColor(
+                        cp.sessions_remaining,
+                        cp.total_sessions,
+                      ),
+                    }}
+                  >
+                    {cp.sessions_remaining}/{cp.total_sessions} 次
+                  </span>
+                  <span className="pkg-expire">
+                    到期：
+                    {new Date(cp.expires_at).toLocaleDateString('zh-HK')}
                   </span>
                 </label>
-              )
-            ))}
+              ))}
           </div>
         </div>
       )}
 
       {/* Service */}
-      <div className="form-group">
-        <label htmlFor="serviceId">服務項目 *</label>
-        <select
-          id="serviceId"
-          value={form.serviceId}
-          onChange={e => setForm(f => ({ ...f, serviceId: e.target.value }))}
-          required
-        >
-          <option value="">請選擇服務…</option>
-          {visibleServices && <optgroup label="套票包含服務">{visibleServices.map(s => <option key={s.id} value={s.id}>{s.name}（{s.duration_minutes}分鐘）</option>)}</optgroup>}
-          {!visibleServices && services.map(s => <option key={s.id} value={s.id}>{s.name} — HK${(s.price / 100).toFixed(0)}（{s.duration_minutes}分鐘）</option>)}
-          {visibleServices && services.filter(s => !linkedServices.includes(s.id)).length > 0 && (
-            <optgroup label="其他服務（自費）">
-              {services.filter(s => !linkedServices.includes(s.id)).map(s => <option key={s.id} value={s.id}>{s.name} — HK${(s.price / 100).toFixed(0)}（{s.duration_minutes}分鐘）</option>)}
-            </optgroup>
+      <div className="form-section">
+        <h3 className="form-section-title">✂️ 選擇服務</h3>
+        <div className="service-grid">
+          {visibleServices.map((s) => (
+            <label
+              key={s.id}
+              className={`service-card ${
+                Number(form.serviceId) === s.id ? 'selected' : ''
+              }`}
+              onClick={() =>
+                setForm((f) => ({ ...f, serviceId: String(s.id) }))
+              }
+            >
+              <input
+                type="radio"
+                name="service"
+                value={s.id}
+                checked={Number(form.serviceId) === s.id}
+                onChange={() =>
+                  setForm((f) => ({ ...f, serviceId: String(s.id) }))
+                }
+              />
+              <span className="svc-name">{s.name}</span>
+              <span className="svc-meta">{s.duration_minutes}分鐘</span>
+              <span className="svc-price">HK${(s.price / 100).toFixed(0)}</span>
+            </label>
+          ))}
+        </div>
+        {form.customerPackageId &&
+          services.filter((s) => !linkedServices.includes(s.id)).length > 0 && (
+            <>
+              <div className="service-divider">其他服務（自費）</div>
+              <div className="service-grid">
+                {services
+                  .filter((s) => !linkedServices.includes(s.id))
+                  .map((s) => (
+                    <label
+                      key={s.id}
+                      className={`service-card ${
+                        Number(form.serviceId) === s.id ? 'selected' : ''
+                      }`}
+                      onClick={() =>
+                        setForm((f) => ({ ...f, serviceId: String(s.id) }))
+                      }
+                    >
+                      <input
+                        type="radio"
+                        name="service"
+                        value={s.id}
+                        checked={Number(form.serviceId) === s.id}
+                        onChange={() =>
+                          setForm((f) => ({ ...f, serviceId: String(s.id) }))
+                        }
+                      />
+                      <span className="svc-name">{s.name}</span>
+                      <span className="svc-meta">{s.duration_minutes}分鐘</span>
+                      <span className="svc-price">
+                        HK${(s.price / 100).toFixed(0)}
+                      </span>
+                    </label>
+                  ))}
+              </div>
+            </>
           )}
-        </select>
+      </div>
+
+      {/* Date / Time */}
+      <div className="form-section">
+        <h3 className="form-section-title">📅 選擇日期及時間</h3>
+        <div className="form-group">
+          <label htmlFor="datePicker">日期</label>
+          <input
+            id="datePicker"
+            type="date"
+            value={date}
+            min={today}
+            onChange={(e) => setDate(e.target.value)}
+          />
+        </div>
+        {form.serviceId && (
+          <div className="time-slots-container">
+            {loadingSlots && (
+              <div className="slots-loading">載入時段中…</div>
+            )}
+            {emptyMsg && <div className="slots-empty">{emptyMsg}</div>}
+            {!loadingSlots && !emptyMsg && slots.length > 0 && (
+              <>
+                <p className="slots-hint">
+                  可選時段（已屏蔽已被預約的時間）：
+                </p>
+                <div className="time-slots-grid">
+                  {slots.map((s) => (
+                    <label
+                      key={s}
+                      className={`time-slot ${
+                        form.startsAt === `${date}T${s}` ? 'selected' : ''
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="timeslot"
+                        value={s}
+                        checked={form.startsAt === `${date}T${s}`}
+                        onChange={() =>
+                          setForm((f) => ({ ...f, startsAt: `${date}T${s}` }))
+                        }
+                      />
+                      {s}
+                    </label>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Name + Email */}
-      <div className="form-row">
-        <div className="form-group">
-          <label htmlFor="customerName">姓名 *</label>
-          <input id="customerName" type="text" value={form.customerName} onChange={e => setForm(f => ({ ...f, customerName: e.target.value }))} placeholder="你的姓名" required />
-        </div>
-        <div className="form-group">
-          <label htmlFor="customerEmail">電郵（選填）</label>
-          <input id="customerEmail" type="email" value={form.customerEmail} onChange={e => setForm(f => ({ ...f, customerEmail: e.target.value }))} placeholder="example@email.com" />
+      <div className="form-section">
+        <h3 className="form-section-title">👤 聯絡方式</h3>
+        <div className="form-row">
+          <div className="form-group">
+            <label htmlFor="customerName">姓名 *</label>
+            <input
+              id="customerName"
+              type="text"
+              value={form.customerName}
+              onChange={(e) =>
+                setForm((f) => ({ ...f, customerName: e.target.value }))
+              }
+              placeholder="你的姓名"
+              required
+            />
+          </div>
+          <div className="form-group">
+            <label htmlFor="customerEmail">電郵（選填）</label>
+            <input
+              id="customerEmail"
+              type="email"
+              value={form.customerEmail}
+              onChange={(e) =>
+                setForm((f) => ({ ...f, customerEmail: e.target.value }))
+              }
+              placeholder="example@email.com"
+            />
+          </div>
         </div>
       </div>
 
-      {/* Date/Time */}
-      <div className="form-group">
-        <label htmlFor="startsAt">希望時間 *</label>
-        <input id="startsAt" type="datetime-local" value={form.startsAt} onChange={e => setForm(f => ({ ...f, startsAt: e.target.value }))} required />
-      </div>
-
-      <button type="submit" className="salon-button" disabled={submitting}>
-        {submitting ? '提交中…' : '確認預約'}
+      <button
+        type="submit"
+        className="booking-submit-btn"
+        disabled={submitting || !form.startsAt || !form.serviceId}
+      >
+        {submitting ? '提交中…' : '✓ 確認預約'}
       </button>
     </form>
   )
