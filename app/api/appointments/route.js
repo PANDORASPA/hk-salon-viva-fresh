@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { getServiceClient } from '../../../lib/supabase/service'
 import { guardMutationRequest } from '../../../lib/security/request-guards'
 import { applyRedemption, isCustomerPackageUsable } from '../../../lib/booking/package-usage'
+import { sendBookingNotification } from '../../../lib/notifications/notify'
 
 export async function POST(request) {
   const guard = await guardMutationRequest(request, { rateLimit: { scope: 'booking', limit: 10, windowMs: 3_600_000 } })
@@ -86,6 +87,17 @@ export async function POST(request) {
         'Package redemption failed; booking was rolled back.'
       return NextResponse.json({ error: message, reason }, { status: 400 })
     }
+  }
+
+  // Fire-and-forget notification. Failures do not break the booking.
+  try {
+    await sendBookingNotification({
+      event: 'booking_confirmation',
+      booking: apt,
+      service: svc || null,
+    })
+  } catch (err) {
+    console.error('[booking.post] notification failed', err?.message || err)
   }
 
   return NextResponse.json({ appointment: apt }, { status: 201 })

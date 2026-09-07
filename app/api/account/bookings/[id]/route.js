@@ -3,6 +3,7 @@ import { getServerClient } from '../../../../../lib/supabase/server'
 import { getServiceClient } from '../../../../../lib/supabase/service'
 import { guardMutationRequest } from '../../../../../lib/security/request-guards'
 import { reverseRedemption, applyRedemption } from '../../../../../lib/booking/package-usage'
+import { sendBookingNotification } from '../../../../../lib/notifications/notify'
 
 /**
  * GET /api/account/bookings/[id] — read a single booking, scoped to the
@@ -130,6 +131,17 @@ export async function PATCH(request, { params }) {
     }
   }
 
+  // Fire-and-forget notification
+  try {
+    await sendBookingNotification({
+      event: 'booking_reschedule',
+      booking: updated,
+      prevStartsAt: existing.starts_at,
+    })
+  } catch (err) {
+    console.error('[booking.patch] notification failed', err?.message || err)
+  }
+
   return NextResponse.json({ booking: updated })
 }
 
@@ -181,6 +193,17 @@ export async function DELETE(request, { params }) {
       customerPackageId: existing.customer_package_id,
       appointmentId: existing.id,
     })
+  }
+
+  // Fire-and-forget notification
+  try {
+    await sendBookingNotification({
+      event: 'booking_cancellation',
+      booking: updated,
+      packageRefunded: Boolean(refund?.ok),
+    })
+  } catch (err) {
+    console.error('[booking.delete] notification failed', err?.message || err)
   }
 
   return NextResponse.json({
