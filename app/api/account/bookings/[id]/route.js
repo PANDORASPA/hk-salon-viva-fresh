@@ -35,7 +35,13 @@ export async function GET(_request, { params }) {
 
 /**
  * PATCH /api/account/bookings/[id] — reschedule an existing booking.
- * Body: { startsAt?: string (ISO 8601) }
+ * Body: { startsAt?: string (ISO 8601 with offset) }
+ *    OR { date: 'YYYY-MM-DD', time: 'HH:mm' } — interpreted as Asia/Hong_Kong.
+ *
+ * The two-key form exists because the customer-facing reschedule dialog
+ * collects the new slot in local HK time; converting to UTC on the client
+ * would risk drift if the user's clock is wrong. The server-side HK→UTC
+ * conversion is the single source of truth.
  *
  * If the booking was paid with a customer package, the redemption is
  * reversed (refunded) and re-applied for the new slot. Either step failing
@@ -51,7 +57,18 @@ export async function PATCH(request, { params }) {
   }
 
   const body = await request.json().catch(() => ({}))
-  const startsAt = body?.startsAt
+  let startsAt = null
+  if (typeof body?.startsAt === 'string' && body.startsAt) {
+    startsAt = body.startsAt
+  } else if (body?.date && body?.time) {
+    // HK local date + time → ISO with explicit +08:00 offset
+    const { hkLocalToIso } = await import('../../../../../lib/booking/salon-availability')
+    try {
+      startsAt = hkLocalToIso(body.date, body.time)
+    } catch {
+      return NextResponse.json({ error: 'Invalid date or time.' }, { status: 400 })
+    }
+  }
   if (!startsAt || Number.isNaN(new Date(startsAt).getTime()) || new Date(startsAt) <= new Date()) {
     return NextResponse.json({ error: 'Invalid or past start time.' }, { status: 400 })
   }

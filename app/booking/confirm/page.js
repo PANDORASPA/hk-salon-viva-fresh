@@ -103,7 +103,7 @@ export default async function BookingConfirmPage({ searchParams }) {
             <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 24 }}>
               <a
                 className="salon-button"
-                href={`https://wa.me/852XXXXXXXX?text=${encodeURIComponent(`你好！我剛在 SALON POKE 網站預約了 #${appointment.id}（${appointment.services?.name || ''}，${startsAt || ''}），請確認。`)}`}
+                href={`https://wa.me/85261201689?text=${encodeURIComponent(`你好！我剛在 SALON POKE 網站預約了 #${appointment.id}（${appointment.services?.name || ''}，${startsAt || ''}），請確認。`)}`}
                 target="_blank"
                 rel="noopener"
               >

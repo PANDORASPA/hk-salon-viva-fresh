@@ -96,7 +96,7 @@ export default async function AccountPage() {
         <div style={{ marginTop: 40, padding: 24, background: '#f7f3ec', borderRadius: 8 }}>
           <h3 style={{ margin: '0 0 12px', fontFamily: 'Georgia,serif' }}>{t('account.contact.title', locale)}</h3>
           <p style={{ color: '#706961', marginBottom: 16 }}>{t('account.contact.body', locale)}</p>
-          <a className="salon-button" href="https://wa.me/852XXXXXXXX" target="_blank" rel="noopener">
+          <a className="salon-button" href="https://wa.me/85261201689" target="_blank" rel="noopener">
             {t('account.contact.cta', locale)}
           </a>
         </div>

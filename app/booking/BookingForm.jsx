@@ -414,25 +414,31 @@ export default function BookingForm({ services = [], packages = [] }) {
                   可選時段（已屏蔽已被預約的時間）：
                 </p>
                 <div className="time-slots-grid">
-                  {slots.map((s) => (
-                    <label
-                      key={s}
-                      className={`time-slot ${
-                        form.startsAt === `${date}T${s}` ? 'selected' : ''
-                      }`}
-                    >
-                      <input
-                        type="radio"
-                        name="timeslot"
-                        value={s}
-                        checked={form.startsAt === `${date}T${s}`}
-                        onChange={() =>
-                          setForm((f) => ({ ...f, startsAt: `${date}T${s}` }))
-                        }
-                      />
-                      {s}
-                    </label>
-                  ))}
+                  {slots.map((s) => {
+                    // API now returns { label, iso } so we can store an
+                    // unambiguous +08:00 offset instead of guessing.
+                    const slotLabel = typeof s === 'string' ? s : s.label
+                    const slotIso = typeof s === 'string' ? `${date}T${s}:00+08:00` : s.iso
+                    return (
+                      <label
+                        key={slotIso}
+                        className={`time-slot ${
+                          form.startsAt === slotIso ? 'selected' : ''
+                        }`}
+                      >
+                        <input
+                          type="radio"
+                          name="timeslot"
+                          value={slotIso}
+                          checked={form.startsAt === slotIso}
+                          onChange={() =>
+                            setForm((f) => ({ ...f, startsAt: slotIso }))
+                          }
+                        />
+                        {slotLabel}
+                      </label>
+                    )
+                  })}
                 </div>
               </>
             )}

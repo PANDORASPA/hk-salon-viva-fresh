@@ -40,11 +40,22 @@ export default function BookingsClient({ initialBookings = [] }) {
   }
 
   const reschedule = async (b) => {
+    // Default the prompt to the booking's HK-local date+time so the
+    // customer is always editing the value they actually see on screen.
+    const hk = b.starts_at ? new Date(b.starts_at) : null
+    const defaultStr = hk
+      ? `${hk.toLocaleDateString('en-CA', { timeZone: 'Asia/Hong_Kong' })}T${hk.toLocaleTimeString('en-GB', { timeZone: 'Asia/Hong_Kong', hourCycle: 'h23', hour: '2-digit', minute: '2-digit' })}`
+      : ''
     const input = prompt(
       '輸入新嘅日期時間 (YYYY-MM-DDTHH:mm，香港時間):',
-      b.starts_at ? b.starts_at.slice(0, 16) : '',
+      defaultStr,
     )
     if (!input) return
+    const m = input.match(/^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2})/)
+    if (!m) {
+      setError('日期時間格式唔啱，請用 YYYY-MM-DDTHH:mm。')
+      return
+    }
     setBusyId(b.id)
     setError('')
     setMessage('')
@@ -52,7 +63,7 @@ export default function BookingsClient({ initialBookings = [] }) {
       const r = await fetch(`/api/account/bookings/${b.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ startsAt: input }),
+        body: JSON.stringify({ date: m[1], time: m[2] }),
       })
       const d = await r.json()
       if (!r.ok) throw new Error(d.error || '改期失敗')

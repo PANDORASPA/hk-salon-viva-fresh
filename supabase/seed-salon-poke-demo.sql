@@ -90,5 +90,5 @@ $$;
 
 -- Site content (defaults)
 INSERT INTO public.site_content (data) VALUES (
-  '{"identity":{"name":"SALON POKE BY VIVA","shortName":"SALON POKE","tagline":"爆毛術脫髮護理","eyebrow":"香港 · 敬請預約","heroTitle":"亞洲人髮絲專家","heroBody":"超過20年專業經驗，專精剪髮、染髮、電髮、離子夾及頭髮修護。我們專注為亞洲髮質提供量身訂造的護理方案，在私密的香港市中心工作室為你服務。"},"contact":{"whatsapp":"852XXXXXXXX","phone":"852XXXXXXXX","email":"info@salonpokeviva.com","area":"香港","addressNote":"確實地址於預約確認後以 WhatsApp 發送"},"business":{"openDays":"星期一至六","hours":"10:00 – 19:00","closedDays":"星期日及公眾假期休息"},"bookingNotice":"預約確認後我們會發送 WhatsApp 訊息，包含工作室確實地址。"}'
+  '{"identity":{"name":"SALON POKE BY VIVA","shortName":"SALON POKE","tagline":"爆毛術脫髮護理","eyebrow":"香港 · 敬請預約","heroTitle":"亞洲人髮絲專家","heroBody":"超過20年專業經驗，專精剪髮、染髮、電髮、離子夾及頭髮修護。我們專注為亞洲髮質提供量身訂造的護理方案，在私密的香港市中心工作室為你服務。"},"contact":{"whatsapp":"85261201689","phone":"85261201689","email":"info@salonpokeviva.com","area":"香港","addressNote":"確實地址於預約確認後以 WhatsApp 發送"},"business":{"openDays":"星期一至六","hours":"10:00 – 19:00","closedDays":"星期日及公眾假期休息"},"bookingNotice":"預約確認後我們會發送 WhatsApp 訊息，包含工作室確實地址。"}'
 ) ON CONFLICT DO NOTHING;

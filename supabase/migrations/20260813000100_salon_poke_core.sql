@@ -1,5 +1,8 @@
--- Focused Salon Poke Bristol schema layered on the original reusable platform.
--- Booking display and availability use Europe/London; timestamps remain UTC.
+-- Focused Salon Poke HK schema layered on the original reusable platform.
+-- All booking display and availability use Asia/Hong_Kong (UTC+8, no DST);
+-- timestamps remain UTC. The earlier `Europe/London` comment referred to
+-- a Bristol-era template that was re-targeted to HK on the
+-- `feat(timezone): HK-only` migration.
 
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
@@ -74,7 +77,7 @@ BEGIN
   SELECT * INTO selected_service FROM public.services WHERE id=p_service_id AND enabled=true AND published=true;
   IF NOT FOUND THEN RAISE EXCEPTION 'service_not_available'; END IF;
   calculated_end := p_starts_at + make_interval(mins => selected_service.duration_minutes);
-  PERFORM pg_advisory_xact_lock(hashtextextended((p_starts_at AT TIME ZONE 'Europe/London')::date::text, 0));
+  PERFORM pg_advisory_xact_lock(hashtextextended((p_starts_at AT TIME ZONE 'Asia/Hong_Kong')::date::text, 0));
   IF EXISTS (SELECT 1 FROM public.appointments WHERE status <> 'cancelled' AND starts_at < calculated_end + interval '15 minutes' AND ends_at + interval '15 minutes' > p_starts_at) THEN
     RAISE EXCEPTION 'appointment_slot_unavailable';
   END IF;
