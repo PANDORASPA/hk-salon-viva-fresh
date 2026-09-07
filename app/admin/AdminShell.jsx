@@ -9,6 +9,7 @@ import {
   GalleryModule,
   ScheduleModule,
   ServicesModule,
+  SettingsModule,
   SiteContentModule,
 } from '../components/admin/SalonAdminModules'
 import { CustomersModule, PackagesModule } from '../components/admin/SalonCustomerModules'
@@ -18,6 +19,7 @@ const tabs = [
   ['customers', '客戶'],
   ['packages', '套票'],
   ['services', '服務定價'],
+  ['settings', '設定'],
   ['schedule', '營業時間'],
   ['gallery', '圖庫'],
   ['site-content', '網站內容'],
@@ -30,6 +32,7 @@ const panels = {
   customers: CustomersModule,
   packages: PackagesModule,
   services: ServicesModule,
+  settings: SettingsModule,
   schedule: ScheduleModule,
   gallery: GalleryModule,
   'site-content': SiteContentModule,

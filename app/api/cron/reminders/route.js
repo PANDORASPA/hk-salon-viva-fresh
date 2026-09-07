@@ -2,17 +2,19 @@ import { NextResponse } from 'next/server'
 import { getServiceClient } from '../../../../lib/supabase/service'
 import { sendEmail } from '../../../../lib/notifications/email.js'
 import { formatAppointmentDateTime } from '../../../../lib/format'
+import { readAppSettings } from '../../../../lib/settings/app-settings'
 
 /**
  * GET /api/cron/reminders
  *
  * Vercel cron target (configured in vercel.json, runs hourly):
- *   1. Find all appointments with starts_at between (now + 23h) and
- *      (now + 25h) — 1-hour window around the 24h mark
- *   2. For each, check the `notifications` table for an existing
+ *   1. Read `app_settings.reminder_hours_before` (default 24h)
+ *   2. Find all appointments with starts_at in a 1-hour window around
+ *      (now + reminder_hours_before)
+ *   3. For each, check the `notifications` table for an existing
  *      reminder_24h row (idempotency)
- *   3. Send a reminder email via the existing Resend dispatcher
- *   4. Record a `reminder_24h` notification row so we don't double-send
+ *   4. Send a reminder email via the existing Resend dispatcher
+ *   5. Record a `reminder_24h` notification row so we don't double-send
  *
  * Auth: requires a `?secret=<CRON_SECRET>` query param matching
  * process.env.CRON_SECRET. Vercel cron adds this automatically when
@@ -33,9 +35,11 @@ export async function GET(request) {
     return NextResponse.json({ error: 'Supabase service role not configured.' }, { status: 500 })
   }
 
+  const settings = await readAppSettings(db)
+  const reminderHours = Math.max(1, Number(settings.reminder_hours_before ?? 24))
   const now = new Date()
-  const windowStart = new Date(now.getTime() + 23 * 60 * 60_000)
-  const windowEnd = new Date(now.getTime() + 25 * 60 * 60_000)
+  const windowStart = new Date(now.getTime() + (reminderHours - 1) * 60 * 60_000)
+  const windowEnd = new Date(now.getTime() + (reminderHours + 1) * 60 * 60_000)
 
   const { data: upcoming, error } = await db
     .from('appointments')
@@ -72,7 +76,7 @@ export async function GET(request) {
 
     const startsAtHkd = formatAppointmentDateTime(apt.starts_at)
     const serviceName = apt.services?.name || '服務'
-    const subject = `【提醒】預約 #${apt.id} 將於 24 小時內開始 · SALON POKE BY VIVA`
+    const subject = `【提醒】預約 #${apt.id} 將於 ${reminderHours} 小時內開始 · SALON POKE BY VIVA`
     const text = [
       `${apt.customer_name || '客戶'} 你好，`,
       ``,
@@ -82,7 +86,7 @@ export async function GET(request) {
       `時間：${startsAtHkd}`,
       ``,
       `請於預約時間 5 分鐘前到達工作室。`,
-      `如需改期或取消，請最少提前 24 小時通知我哋。`,
+      `如需改期或取消，請最少提前 ${settings.cancel_cutoff_hours ?? 24} 小時通知我哋。`,
       ``,
       `SALON POKE BY VIVA`,
     ].join('\n')

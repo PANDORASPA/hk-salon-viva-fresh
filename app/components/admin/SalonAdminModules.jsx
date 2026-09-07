@@ -21,6 +21,63 @@ export function AdministratorsModule(){const r=useResource('/api/admin/administr
 
 function Module({title,intro,children}){return <div className="admin-module"><header><h2>{title}</h2>{intro?<p>{intro}</p>:null}</header>{children}</div>}
 
+export function SettingsModule(){
+  // Runtime settings: notification toggles + booking rules.
+  const [settings,setSettings]=useState(null),[settingsMsg,setSettingsMsg]=useState(''),[settingsErr,setSettingsErr]=useState('')
+  const loadSettings=async()=>{try{setSettingsErr('');const data=await api('/api/admin/settings');setSettings(data.settings)}catch(e){setSettingsErr(e.message)}}
+  useEffect(()=>{loadSettings()},[])
+  const updateSetting=(key,value)=>setSettings(prev=>({...prev,[key]:value}))
+  const saveSettings=async()=>{try{setSettingsMsg('');setSettingsErr('');const data=await api('/api/admin/settings',{method:'PATCH',body:JSON.stringify({settings})});setSettings(data.settings);setSettingsMsg('✓ 已儲存設定');setTimeout(()=>setSettingsMsg(''),3000)}catch(e){setSettingsErr(e.message)}};
+
+  // Weekly hours + closed dates (delegates to the existing schedule API).
+  const [hours,setHours]=useState([]),[blocked,setBlocked]=useState([]),[scheduleErr,setScheduleErr]=useState(''),[scheduleMsg,setScheduleMsg]=useState('')
+  const loadSchedule=async()=>{try{setScheduleErr('');const data=await api('/api/admin/schedule');setHours(data.hours);setBlocked(data.blockedDates)}catch(e){setScheduleErr(e.message)}}
+  useEffect(()=>{loadSchedule()},[])
+  const saveHours=async()=>{try{setScheduleErr('');setScheduleMsg('');await api('/api/admin/schedule',{method:'POST',body:JSON.stringify({type:'hours',hours})});setScheduleMsg('✓ 已儲存營業時間');setTimeout(()=>setScheduleMsg(''),3000);loadSchedule()}catch(e){setScheduleErr(e.message)}}
+  const addBlock=async(event)=>{event.preventDefault();try{setScheduleErr('');const data=Object.fromEntries(new FormData(event.currentTarget));await api('/api/admin/schedule',{method:'POST',body:JSON.stringify(data)});event.currentTarget.reset();loadSchedule()}catch(e){setScheduleErr(e.message)}}
+  const removeBlock=async(id)=>{try{await api(`/api/admin/schedule?id=${id}`,{method:'DELETE'});loadSchedule()}catch(e){setScheduleErr(e.message)}}
+  const weekdayLabel=['日','一','二','三','四','五','六']
+
+  if(!settings) return <Module title="設定"><p>Loading…</p></Module>
+
+  return (
+    <div style={{display:'flex',flexDirection:'column',gap:24}}>
+      <Module title="通知偏好" intro="選擇客人會收到邊啲渠道嘅訊息。Email 會去 Resend，WhatsApp 仲係 stub。">
+        {settingsErr?<p className="salon-error">{settingsErr}</p>:null}
+        {settingsMsg?<p style={{color:'#2c6e3a'}}>{settingsMsg}</p>:null}
+        <div className="admin-list" style={{marginBottom:16}}>
+          <label className="admin-toggle-row"><span><strong>Email 通知</strong><small style={{display:'block',color:'#706961',fontSize:12}}>預約確認、取消、改期同 24 小時提醒</small></span><input type="checkbox" checked={Boolean(settings.notify_email_enabled)} onChange={e=>updateSetting('notify_email_enabled',e.target.checked)}/></label>
+          <label className="admin-toggle-row"><span><strong>WhatsApp 通知</strong><small style={{display:'block',color:'#706961',fontSize:12}}>需要先喺 Vercel set TWILIO 認證</small></span><input type="checkbox" checked={Boolean(settings.notify_whatsapp_enabled)} onChange={e=>updateSetting('notify_whatsapp_enabled',e.target.checked)} disabled/></label>
+          <label className="admin-toggle-row"><span><strong>Console log</strong><small style={{display:'block',color:'#706961',fontSize:12}}>server console 打印訊息內容，方便除錯</small></span><input type="checkbox" checked={Boolean(settings.notify_console_enabled)} onChange={e=>updateSetting('notify_console_enabled',e.target.checked)}/></label>
+          <label className="admin-toggle-row"><span><strong>Dry-run 模式</strong><small style={{display:'block',color:'#706961',fontSize:12}}>暫停真實發送，所有渠道都只係 log</small></span><input type="checkbox" checked={Boolean(settings.notify_dry_run)} onChange={e=>updateSetting('notify_dry_run',e.target.checked)}/></label>
+        </div>
+        <Module title="預約規則" intro="控制取消期限、提前提醒同預約 buffer。">
+          <div className="admin-inline-form" style={{alignItems:'flex-end'}}>
+            <label>取消期限（小時）<input type="number" min="0" max="168" value={settings.cancel_cutoff_hours} onChange={e=>updateSetting('cancel_cutoff_hours',Number(e.target.value))}/></label>
+            <label>提醒提前（小時）<input type="number" min="1" max="168" value={settings.reminder_hours_before} onChange={e=>updateSetting('reminder_hours_before',Number(e.target.value))}/></label>
+            <label>預約 buffer（分鐘）<input type="number" min="0" max="120" value={settings.booking_buffer_minutes} onChange={e=>updateSetting('booking_buffer_minutes',Number(e.target.value))}/></label>
+            <Button onClick={saveSettings}>儲存所有設定</Button>
+          </div>
+        </Module>
+      </Module>
+
+      <Module title="營業時間" intro="每週開放時間同特別休息日。改完記得按儲存。">
+        {scheduleErr?<p className="salon-error">{scheduleErr}</p>:null}
+        {scheduleMsg?<p style={{color:'#2c6e3a'}}>{scheduleMsg}</p>:null}
+        <div className="hours-grid">{hours.map((row,index)=><label key={row.weekday}><span>{'星期'+weekdayLabel[row.weekday]}</span><input type="checkbox" checked={row.is_open} onChange={e=>setHours(hours.map((item,i)=>i===index?{...item,is_open:e.target.checked}:item))}/><input type="time" disabled={!row.is_open} value={row.opens_at?.slice(0,5)||''} onChange={e=>setHours(hours.map((item,i)=>i===index?{...item,opens_at:e.target.value}:item))}/><input type="time" disabled={!row.is_open} value={row.closes_at?.slice(0,5)||''} onChange={e=>setHours(hours.map((item,i)=>i===index?{...item,closes_at:e.target.value}:item))}/></label>)}</div>
+        <div style={{marginTop:12}}><Button onClick={saveHours}>儲存每週時間</Button></div>
+        <form className="admin-inline-form" onSubmit={addBlock} style={{marginTop:20}}>
+          <input type="date" name="startsOn" required/>
+          <input type="date" name="endsOn" required/>
+          <input name="reason" placeholder="休息原因（例：農曆新年）"/>
+          <Button>加休息日</Button>
+        </form>
+        <div className="admin-list" style={{marginTop:12}}>{blocked.map(row=><article key={row.id}><span>{row.starts_on} – {row.ends_on} · {row.reason||'—'}</span><Button onClick={()=>removeBlock(row.id)}>移除</Button></article>)}</div>
+      </Module>
+    </div>
+  )
+}
+
 export function AuditLogModule(){
   const r = useResource('/api/admin/audit-logs', 'auditLogs')
   const [actionFilter, setActionFilter] = useState('')

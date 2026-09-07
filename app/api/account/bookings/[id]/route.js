@@ -4,6 +4,7 @@ import { getServiceClient } from '../../../../../lib/supabase/service'
 import { guardMutationRequest } from '../../../../../lib/security/request-guards'
 import { reverseRedemption, applyRedemption } from '../../../../../lib/booking/package-usage'
 import { sendBookingNotification } from '../../../../../lib/notifications/notify'
+import { readAppSettings } from '../../../../../lib/settings/app-settings'
 
 /**
  * GET /api/account/bookings/[id] — read a single booking, scoped to the
@@ -178,11 +179,13 @@ export async function DELETE(request, { params }) {
   }
 
   // Cancellation cutoff: clients must cancel at least N hours ahead.
-  // Default 24h; admin can override per-deploy via CANCEL_CUTOFF_HOURS=0
-  // (disable) or 48 etc.
-  const cutoffHours = Number.isFinite(Number(process.env.CANCEL_CUTOFF_HOURS))
-    ? Number(process.env.CANCEL_CUTOFF_HOURS)
-    : 24
+  // The admin sets the value in /admin/settings; CANCEL_CUTOFF_HOURS env
+  // still wins as a per-deploy escape hatch.
+  const settings = await readAppSettings(db)
+  const envCutoff = Number(process.env.CANCEL_CUTOFF_HOURS)
+  const cutoffHours = Number.isFinite(envCutoff)
+    ? envCutoff
+    : Number(settings.cancel_cutoff_hours ?? 24)
   if (cutoffHours > 0) {
     const msUntilStart = new Date(existing.starts_at).getTime() - Date.now()
     if (msUntilStart < cutoffHours * 3_600_000) {
