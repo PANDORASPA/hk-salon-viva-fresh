@@ -34,3 +34,14 @@ next-start*.log
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# editor
+.idea
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+
+# ad-hoc smoke artefacts — committed historically, generated per release
+LIVE_SMOKE_REPORT_*.json
+RELEASE_GATE_REPORT_*.json
+/docs/smoke/*.json

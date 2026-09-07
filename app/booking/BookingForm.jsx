@@ -9,7 +9,15 @@ function balanceColor(remaining, total) {
   return '#27ae60'
 }
 
-export default function BookingForm({ services = [] }) {
+// Strict numeric parse: returns null for NaN, 0, or empty
+function safeNumber(value) {
+  if (value === null || value === undefined || value === '') return null
+  const n = Number(value)
+  if (!Number.isFinite(n) || n <= 0) return null
+  return n
+}
+
+export default function BookingForm({ services = [], packages = [] }) {
   const router = useRouter()
   const [form, setForm] = useState({
     serviceId: '',
@@ -20,9 +28,10 @@ export default function BookingForm({ services = [] }) {
     customerId: '',
     customerPackageId: '',
   })
-  const [packages, setPackages] = useState([])
+  const [availablePackages, setAvailablePackages] = useState(packages || [])
   const [customerPackages, setCustomerPackages] = useState([])
   const [customerFound, setCustomerFound] = useState(null)
+  const [lookupStatus, setLookupStatus] = useState('idle') // 'idle' | 'searching' | 'found' | 'not-found' | 'error'
   const [linkedServices, setLinkedServices] = useState([])
   const [submitting, setSubmitting] = useState(false)
   const [message, setMessage] = useState('')
@@ -36,12 +45,26 @@ export default function BookingForm({ services = [] }) {
   const [loadingSlots, setLoadingSlots] = useState(false)
   const [emptyMsg, setEmptyMsg] = useState('')
 
-  // Load active packages on mount
+  // Load active packages on mount (props take precedence; otherwise fetch)
   useEffect(() => {
+    if (packages && packages.length) {
+      setAvailablePackages(packages)
+      return
+    }
+    let cancelled = false
     fetch('/api/packages')
-      .then((r) => r.json())
-      .then((d) => setPackages(d.packages || []))
-  }, [])
+      .then((r) => {
+        if (!r.ok) throw new Error('packages http ' + r.status)
+        return r.json()
+      })
+      .then((d) => {
+        if (!cancelled) setAvailablePackages(d.packages || [])
+      })
+      .catch(() => {
+        if (!cancelled) setAvailablePackages([])
+      })
+    return () => { cancelled = true }
+  }, [packages])
 
   // Load availability for the selected service + date
   const loadAvailability = useCallback(async () => {
@@ -61,10 +84,10 @@ export default function BookingForm({ services = [] }) {
       }
       setSlots(s.slots || [])
       if (s.slots?.length === 0) {
-        setEmptyMsg('当日无可预约时段，请选择其他日期')
+        setEmptyMsg('當日無可預約時段，請選擇其他日期')
       }
     } catch {
-      setEmptyMsg('載入時段失敗')
+      setEmptyMsg('載入時段失敗，請稍後再試')
     } finally {
       setLoadingSlots(false)
     }
@@ -74,31 +97,43 @@ export default function BookingForm({ services = [] }) {
     loadAvailability()
   }, [loadAvailability])
 
-  // Lookup customer by phone
+  // Lookup customer by phone — debounced on blur, with explicit status state
   const lookupCustomer = useCallback(async (phone) => {
-    if (!phone || phone.trim().length < 5) return
+    if (!phone || phone.trim().length < 5) {
+      setLookupStatus('idle')
+      setCustomerFound(null)
+      setCustomerPackages([])
+      return
+    }
+    setLookupStatus('searching')
     try {
       const r = await fetch(`/api/customers?phone=${encodeURIComponent(phone.trim())}`)
+      if (!r.ok) throw new Error('customers http ' + r.status)
       const d = await r.json()
       const found = d.customers?.[0]
       if (found) {
         setCustomerFound(found)
         setCustomerPackages(found.customer_packages || [])
         if (found.name) setForm((f) => ({ ...f, customerName: found.name }))
-        if (found.email)
-          setForm((f) => ({ ...f, customerEmail: found.email || '' }))
-        setForm((f) => ({ ...f, customerId: found.id, customerPackageId: '' }))
+        if (found.email) setForm((f) => ({ ...f, customerEmail: found.email || '' }))
+        setForm((f) => ({ ...f, customerId: found.id ? String(found.id) : '', customerPackageId: '' }))
+        setLookupStatus('found')
       } else {
         setCustomerFound(null)
         setCustomerPackages([])
         setForm((f) => ({ ...f, customerId: '', customerPackageId: '' }))
+        setLookupStatus('not-found')
       }
-    } catch {}
+    } catch {
+      setLookupStatus('error')
+      setCustomerFound(null)
+      setCustomerPackages([])
+    }
   }, [])
 
-  // ⬇️  FIX: declare `selectedPkg` BEFORE the useEffect that depends on it
+  // Compute the selected package BEFORE any effect that references it
   const selectedPkg = customerPackages.find(
-    (cp) => cp.id === Number(form.customerPackageId),
+    (cp) => safeNumber(cp.id) === safeNumber(form.customerPackageId),
   )
 
   // When a package is selected, derive the list of services it covers
@@ -117,25 +152,32 @@ export default function BookingForm({ services = [] }) {
   const handlePhoneBlur = () => lookupCustomer(form.customerPhone)
 
   const handlePackageChange = (pkgId) => {
-    setForm((f) => ({ ...f, customerPackageId: pkgId, serviceId: '' }))
+    setForm((f) => ({ ...f, customerPackageId: pkgId ? String(pkgId) : '', serviceId: '' }))
   }
 
   const handleSubmit = async (e) => {
     e.preventDefault()
     setError('')
     setMessage('')
+
+    const cid = safeNumber(form.customerId)
+    const cpkgid = safeNumber(form.customerPackageId)
+    const svcId = safeNumber(form.serviceId)
+    if (!svcId) { setError('請選擇服務'); return }
+    if (!form.startsAt) { setError('請選擇日期及時段'); return }
+    if (!form.customerName.trim()) { setError('請填寫姓名'); return }
+    if (!form.customerPhone.trim()) { setError('請填寫電話'); return }
+
     setSubmitting(true)
     try {
       const body = {
-        serviceId: Number(form.serviceId),
+        serviceId: svcId,
         customerName: form.customerName.trim(),
         customerPhone: form.customerPhone.trim(),
         customerEmail: form.customerEmail.trim() || null,
         startsAt: form.startsAt,
-        customerId: form.customerId ? Number(form.customerId) : null,
-        customerPackageId: form.customerPackageId
-          ? Number(form.customerPackageId)
-          : null,
+        customerId: cid,
+        customerPackageId: cpkgid,
       }
       const r = await fetch('/api/appointments', {
         method: 'POST',
@@ -183,13 +225,30 @@ export default function BookingForm({ services = [] }) {
             onChange={(e) =>
               setForm((f) => ({ ...f, customerPhone: e.target.value }))
             }
-            onBlur={() => lookupCustomer(form.customerPhone)}
+            onBlur={handlePhoneBlur}
             placeholder="例：91234567"
             required
+            autoComplete="tel"
           />
-          {customerFound && (
+          {lookupStatus === 'searching' && (
+            <div className="customer-found-badge" style={{ color: '#706961' }}>
+              查詢中…
+            </div>
+          )}
+          {lookupStatus === 'found' && customerFound && (
             <div className="customer-found-badge">
-              ✓ 找到客戶：{customerFound.name}
+              ✓ 找到客戶：{customerFound.name}（ID: {customerFound.id}）
+              {customerPackages.length > 0 && ` · 可用套票 ${customerPackages.length} 張`}
+            </div>
+          )}
+          {lookupStatus === 'not-found' && (
+            <div className="customer-found-badge" style={{ color: '#706961' }}>
+              這是新客戶，請填寫姓名繼續
+            </div>
+          )}
+          {lookupStatus === 'error' && (
+            <div className="customer-found-badge" style={{ color: '#c0392b' }}>
+              客戶查詢失敗，請稍後再試
             </div>
           )}
         </div>
@@ -396,6 +455,7 @@ export default function BookingForm({ services = [] }) {
               }
               placeholder="你的姓名"
               required
+              autoComplete="name"
             />
           </div>
           <div className="form-group">
@@ -408,6 +468,7 @@ export default function BookingForm({ services = [] }) {
                 setForm((f) => ({ ...f, customerEmail: e.target.value }))
               }
               placeholder="example@email.com"
+              autoComplete="email"
             />
           </div>
         </div>

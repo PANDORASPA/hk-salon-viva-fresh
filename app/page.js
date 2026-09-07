@@ -1,14 +1,14 @@
 ﻿import Link from 'next/link'
-import { getServerClient } from './lib/supabase/server'
-import { defaultServices } from './content/salon-poke-defaults'
-import { salonDefaults } from './content/salon-poke-defaults'
+import { getServerClient } from '../lib/supabase/server'
+import { defaultServices, salonDefaults } from '../content/salon-poke-defaults'
 import Footer from './components/Footer'
-import './app/globals.css'
 
 export const metadata = {
   title: 'SALON POKE BY VIVA | 爆毛術脫髮護理',
-  description: '超過20年專業經驗，專精剪髮、染髮、電髮及頭髮修護。亞洲人髮絲專家，香港市中心工作室。',
+  description: '超過20年專業經驗，專精頭髮修護、染髮、電髮及脫髮護理。亞洲人髮絲專家，香港市中心工作室。',
 }
+
+export const dynamic = 'force-dynamic'
 
 export default async function HomePage() {
   const db = await getServerClient()

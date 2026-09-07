@@ -71,7 +71,10 @@ body {
   margin-bottom: 16px;
 }
 .salon-hero h1 {
-  font: '600 52px/1.1 Georgia,serif';
+  font-weight: 600;
+  font-size: 52px;
+  line-height: 1.1;
+  font-family: Georgia, serif;
   margin-bottom: 20px;
   color: var(--text);
 }
@@ -106,7 +109,10 @@ body {
 /* Sections */
 .salon-section { padding: 64px 24px; }
 .salon-section-title {
-  font: '600 36px/1.1 Georgia,serif';
+  font-weight: 600;
+  font-size: 36px;
+  line-height: 1.1;
+  font-family: Georgia, serif;
   text-align: center;
   margin-bottom: 40px;
 }
@@ -121,7 +127,10 @@ body {
 .stat { text-align: center; }
 .stat strong {
   display: block;
-  font: '600 48px/1 Georgia,serif';
+  font-weight: 600;
+  font-size: 48px;
+  line-height: 1;
+  font-family: Georgia, serif;
   color: var(--gold);
 }
 .stat span {
@@ -153,7 +162,10 @@ body {
   font-weight: 600;
 }
 .salon-service-card h3 {
-  font: '600 20px/1.2 Georgia,serif';
+  font-weight: 600;
+  font-size: 20px;
+  line-height: 1.2;
+  font-family: Georgia, serif;
   margin: 8px 0;
 }
 .salon-service-desc {
@@ -207,7 +219,10 @@ body {
   margin-bottom: 32px;
 }
 .salon-footer-brand {
-  font: '600 22px/1 Georgia,serif';
+  font-weight: 600;
+  font-size: 22px;
+  line-height: 1;
+  font-family: Georgia, serif;
   color: var(--gold-light);
   margin-bottom: 8px;
 }
@@ -358,7 +373,7 @@ body {
 .salon-admin-workspace section { flex: 1; padding: 28px; overflow-y: auto; }
 .admin-module { background: #fff; border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; }
 .admin-module header { margin-bottom: 20px; border-bottom: 1px solid var(--border); padding-bottom: 16px; }
-.admin-module header h2 { font: '600 22px/1.1 Georgia,serif'; margin: 0 0 4px; }
+.admin-module header h2 { font-weight: 600; font-size: 22px; line-height: 1.1; font-family: Georgia, serif; margin: 0 0 4px; }
 .admin-module header p { font-size: 14px; color: var(--text-muted); margin: 0; }
 .admin-inline-form { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 20px; align-items: center; }
 .admin-inline-form input, .admin-inline-form select, .admin-inline-form textarea {
