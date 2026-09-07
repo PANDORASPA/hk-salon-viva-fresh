@@ -2,7 +2,15 @@
 import Link from 'next/link'
 import { useState } from 'react'
 import { getBrowserClient } from '../../lib/supabase/browser'
-import { AdministratorsModule, AppointmentsModule, GalleryModule, ScheduleModule, ServicesModule, SiteContentModule } from '../components/admin/SalonAdminModules'
+import {
+  AdministratorsModule,
+  AppointmentsModule,
+  AuditLogModule,
+  GalleryModule,
+  ScheduleModule,
+  ServicesModule,
+  SiteContentModule,
+} from '../components/admin/SalonAdminModules'
 import { CustomersModule, PackagesModule } from '../components/admin/SalonCustomerModules'
 
 const tabs = [
@@ -14,6 +22,7 @@ const tabs = [
   ['gallery', '圖庫'],
   ['site-content', '網站內容'],
   ['administrators', '管理員'],
+  ['audit-log', '審計日誌'],
 ]
 
 const panels = {
@@ -25,6 +34,7 @@ const panels = {
   gallery: GalleryModule,
   'site-content': SiteContentModule,
   administrators: AdministratorsModule,
+  'audit-log': AuditLogModule,
 }
 
 export default function AdminShell({ email }) {

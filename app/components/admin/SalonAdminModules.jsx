@@ -20,3 +20,41 @@ export function SiteContentModule(){const [data,setData]=useState(null),[message
 export function AdministratorsModule(){const r=useResource('/api/admin/administrators','administrators'),add=async(event)=>{event.preventDefault();const email=new FormData(event.currentTarget).get('email');await api('/api/admin/administrators',{method:'POST',body:JSON.stringify({email})});event.currentTarget.reset();r.load()};return <Module title="Administrators" intro="Invite administrators and revoke access. The final active administrator is protected."><form className="admin-inline-form" onSubmit={add}><input type="email" name="email" placeholder="admin@example.com" required/><Button>Invite administrator</Button></form><State {...r}><div className="admin-list">{r.rows.map(row=><article key={row.user_id}><div><strong>{row.email||row.user_id}</strong><p>{row.is_active?'Active':'Inactive'}</p></div><Button onClick={async()=>{await api('/api/admin/administrators',{method:'PATCH',body:JSON.stringify({userId:row.user_id,isActive:!row.is_active})});r.load()}}>{row.is_active?'Revoke':'Restore'}</Button></article>)}</div></State></Module>}
 
 function Module({title,intro,children}){return <div className="admin-module"><header><h2>{title}</h2>{intro?<p>{intro}</p>:null}</header>{children}</div>}
+
+export function AuditLogModule(){
+  const r = useResource('/api/admin/audit-logs', 'auditLogs')
+  const [actionFilter, setActionFilter] = useState('')
+  const load = () => { r.load() }
+  useEffect(() => { /* re-fetch when filter changes */ load() }, [actionFilter])
+  return (
+    <Module title="審計日誌" intro="所有 admin 寫入動作的追加日誌。用作合規審查同除錯。">
+      <div className="admin-inline-form" style={{ marginBottom: 16 }}>
+        <input
+          placeholder="按 action 過濾（例如 customer_package.create）"
+          value={actionFilter}
+          onChange={e => setActionFilter(e.target.value)}
+        />
+        <Button onClick={load}>重新載入</Button>
+      </div>
+      <State {...r}>
+        <div className="admin-list">
+          {r.rows
+            .filter(row => !actionFilter || row.action === actionFilter)
+            .map(row => (
+              <article key={row.id}>
+                <div>
+                  <strong>{row.action}</strong>
+                  {row.target_table && <span style={{ marginLeft: 8, color: '#706961', fontSize: 13 }}>on {row.target_table}#{row.target_id}</span>}
+                  <p style={{ fontSize: 12, color: '#928a81' }}>
+                    {new Date(row.created_at).toLocaleString('zh-HK', { timeZone: 'Asia/Hong_Kong', dateStyle: 'long', timeStyle: 'medium' })}
+                    {row.actor_user_id && ` · actor ${row.actor_user_id.slice(0, 8)}…`}
+                    {row.ip && ` · ${row.ip}`}
+                  </p>
+                </div>
+              </article>
+            ))}
+        </div>
+      </State>
+    </Module>
+  )
+}
