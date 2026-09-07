@@ -72,6 +72,19 @@ test('every en key has a zh-HK counterpart (en is canonical reference)', () => {
     'confirm.cta.whatsapp', 'confirm.cta.ics', 'confirm.cta.home',
     'footer.copyright',
     'lang.switch', 'lang.zh-HK', 'lang.en',
+    'about.title', 'about.intro', 'about.treatment.title', 'about.treatment.cta',
+    'about.cards.0.title', 'about.cards.1.title', 'about.cards.2.title', 'about.cards.3.title',
+    'contact.title', 'contact.cta',
+    'contact.cards.location.title', 'contact.cards.whatsapp.title', 'contact.cards.hours.title',
+    'contact.cards.hours.weekday', 'contact.cards.hours.closed',
+    'gallery.title', 'gallery.subtitle', 'gallery.placeholder',
+    'location.title', 'location.addressLabel', 'location.addressNote',
+    'location.transit.title', 'location.transit.items.0', 'location.transit.items.1', 'location.cta',
+    'privacy.title', 'privacy.updated', 'privacy.intro',
+    'privacy.sections.collection.title', 'privacy.sections.usage.title', 'privacy.sections.storage.title', 'privacy.sections.rights.title',
+    'terms.title', 'terms.updated',
+    'terms.sections.booking.title', 'terms.sections.cancellation.title', 'terms.sections.late.title',
+    'terms.sections.packages.title', 'terms.sections.payment.title', 'terms.sections.privacy.title',
   ]
   for (const k of keys) {
     const zh = t(k, 'zh-HK')
@@ -79,8 +92,13 @@ test('every en key has a zh-HK counterpart (en is canonical reference)', () => {
     assert.ok(typeof zh === 'string' && zh.length > 0, `zh-HK missing: ${k}`)
     assert.ok(typeof en === 'string' && en.length > 0, `en missing: ${k}`)
     // Brand name is intentionally the same in both locales. Skip the
-    // "must differ" check for it.
-    if (k === 'common.brand' || k === 'lang.zh-HK' || k === 'lang.en') continue
+    // "must differ" check for it. WhatsApp is a trademark that doesn't
+    // have a translation either.
+    const IDENTICAL_OK = new Set([
+      'common.brand', 'lang.zh-HK', 'lang.en',
+      'contact.cards.whatsapp.title', 'home.cta.whatsapp',
+    ])
+    if (IDENTICAL_OK.has(k)) continue
     assert.notEqual(zh, en, `key ${k} has identical zh/en (suspicious)`)
   }
 })

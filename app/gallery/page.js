@@ -1,30 +1,31 @@
 import Link from 'next/link'
 import Footer from '../components/Footer'
+import Nav from '../components/i18n/Nav'
+import BrandIcon from '../components/BrandIcons'
+import { t } from '../../lib/i18n/dict'
+import { getLocale } from '../../lib/i18n/server'
 
 export const metadata = { title: '圖庫 | SALON POKE BY VIVA' }
 
+export const dynamic = 'force-dynamic'
+
 export default function GalleryPage() {
+  const locale = getLocale()
   return (
     <div className="salon">
-      <header className="salon-nav">
-        <div className="salon-wrap">
-          <nav>
-            <Link href="/">SALON POKE</Link>
-            <Link href="/services">服務</Link>
-            <Link href="/booking">預約</Link>
-            <Link href="/gallery">圖庫</Link>
-            <Link href="/about">關於</Link>
-            <Link href="/contact">聯絡</Link>
-          </nav>
-        </div>
-      </header>
+      <Nav locale={locale} />
       <main className="salon-wrap salon-section">
-        <h1 style={{ font: '600 42px/1.1 Georgia,serif', marginBottom: 8 }}>圖庫</h1>
-        <p style={{ color: '#706961', marginBottom: 40 }}>我們的作品，展示不同造型及護理效果。</p>
+        <h1 style={{ font: '600 42px/1.1 Georgia,serif', marginBottom: 8 }}>
+          {t('gallery.title', locale)}
+        </h1>
+        <p style={{ color: '#706961', marginBottom: 40 }}>{t('gallery.subtitle', locale)}</p>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 16 }}>
           {Array.from({ length: 8 }).map((_, i) => (
-            <div key={i} style={{ background: '#ede6d9', borderRadius: 8, height: 240, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <p style={{ color: '#b0a493', fontSize: 14 }}>圖庫圖片 {i + 1}</p>
+            <div key={i} style={{ background: 'linear-gradient(135deg, #ede6d9 0%, #d9cdb6 100%)', borderRadius: 8, height: 240, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 8, color: '#928a81' }}>
+              <BrandIcon name="leaf" size={28} className="" />
+              <p style={{ color: '#928a81', fontSize: 14, margin: 0 }}>
+                {t('gallery.placeholder', locale).replace('{n}', String(i + 1))}
+              </p>
             </div>
           ))}
         </div>
