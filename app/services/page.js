@@ -2,6 +2,7 @@ import Footer from '../components/Footer'
 import { defaultServices, salonDefaults } from '../../content/salon-poke-defaults'
 import { getServerClient } from '../../lib/supabase/server'
 import Nav from '../components/i18n/Nav'
+import BrandIcon, { iconForCategory } from '../components/BrandIcons'
 import { t } from '../../lib/i18n/dict'
 import { getLocale } from '../../lib/i18n/server'
 
@@ -53,11 +54,16 @@ export default async function ServicesPage() {
         <div className="salon-services">
           {services.map(s => (
             <div key={s.name} className="salon-service-card">
+              <div className="salon-service-icon" aria-hidden="true">
+                <BrandIcon name={iconForCategory(s.cat)} size={22} />
+              </div>
               {s.cat && <span className="salon-service-cat">{s.cat}</span>}
               <h3>{s.name}</h3>
               <p className="salon-service-desc">{s.desc}</p>
-              <p className="salon-service-price">{s.price}</p>
-              <p className="salon-service-dur">{s.dur}{t('common.minutes', locale)}</p>
+              <div className="salon-service-meta">
+                <p className="salon-service-price">{s.price}</p>
+                <p className="salon-service-dur">{s.dur}{t('common.minutes', locale)}</p>
+              </div>
             </div>
           ))}
         </div>
