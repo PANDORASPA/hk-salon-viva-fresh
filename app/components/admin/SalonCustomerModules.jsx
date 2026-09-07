@@ -1,5 +1,6 @@
 'use client'
 import { useCallback, useEffect, useState } from 'react'
+import CustomerActions from './CustomerActions'
 
 const api = async (url, options = {}) => {
   const response = await fetch(url, {
@@ -154,6 +155,7 @@ export function CustomersModule() {
             <Btn type="submit">分配</Btn>
           </form>
           <Btn onClick={() => setDetail(null)} style={{ marginTop: 12 }}>關閉</Btn>
+          <CustomerActions customerId={detail.id} customerName={detail.name} />
         </div>
       )}
     </Module>
