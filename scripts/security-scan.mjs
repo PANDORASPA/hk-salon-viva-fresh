@@ -47,6 +47,12 @@ function skipTrivia(text, index, { allowNewlines = false, language = 'javascript
       if (cursor === -1 || !allowNewlines) return cursor === -1 ? text.length : cursor
       continue
     }
+    if (language === 'powershell' && text.startsWith('<#', cursor)) {
+      const end = text.indexOf('#>', cursor + 2)
+      if (end === -1) return text.length
+      cursor = end + 2
+      continue
+    }
     break
   }
   return cursor
@@ -88,6 +94,12 @@ function lexCode(text, language) {
       hide(index); hide(index + 1); index += 1
       continue
     }
+    if (language === 'powershell' && char === '<' && next === '#') {
+      hide(index); hide(index + 1); index += 2
+      while (index < text.length && !(text[index] === '#' && text[index + 1] === '>')) { hide(index); index += 1 }
+      hide(index); hide(index + 1); index += 1
+      continue
+    }
     if ((language === 'shell' || language === 'powershell') && char === '#' && (index === 0 || /\s/.test(text[index - 1]))) {
       while (index < text.length && text[index] !== '\n') { hide(index); index += 1 }
     }
@@ -95,7 +107,7 @@ function lexCode(text, language) {
   return { mask: mask.join(''), quotedKeys }
 }
 
-function readLiteral(text, index, allowBare, { dynamicVariables = false } = {}) {
+function readLiteral(text, index, allowBare, { dynamicVariables = false, dynamicCommands = false } = {}) {
   const quote = text[index]
   if (quote === '"' || quote === "'" || quote === '`') {
     let cursor = index + 1
@@ -106,20 +118,50 @@ function readLiteral(text, index, allowBare, { dynamicVariables = false } = {}) 
       if (text[cursor] === quote) {
         const value = text.slice(index, cursor + 1)
         if (dynamicVariables && /\$(?:\{|[A-Za-z_])/.test(value)) return null
-        return { value }
+        return { value, end: cursor + 1 }
       }
     }
     return null
   }
   if (quote === '<') {
     const end = text.indexOf('>', index + 1)
-    return end === -1 || end - index > 4096 ? null : { value: text.slice(index, end + 1) }
+    return end === -1 || end - index > 4096 ? null : { value: text.slice(index, end + 1), end: end + 1 }
   }
   if (!allowBare) return null
   const end = text.slice(index).search(/[\s,;#&|]/)
   const value = end === -1 ? text.slice(index) : text.slice(index, index + end)
   if (!value || /[${}()[\]?+]/.test(value) || /^(?:process|import|require)\b/.test(value)) return null
-  return { value }
+  if (dynamicCommands && /^(?:get|set|read|invoke|new|remove|write|start|stop|test|import|export)-[a-z]/i.test(value)) return null
+  return { value, end: index + value.length }
+}
+
+function hasDynamicJavaScriptTail(text, index) {
+  let cursor = index
+  let sawNewline = false
+  while (cursor < text.length) {
+    while (/\s/.test(text[cursor] || '')) {
+      if (/\r|\n/.test(text[cursor])) sawNewline = true
+      cursor += 1
+    }
+    if (text.startsWith('//', cursor)) {
+      const end = text.indexOf('\n', cursor + 2)
+      if (end === -1) return false
+      sawNewline = true
+      cursor = end + 1
+      continue
+    }
+    if (text.startsWith('/*', cursor)) {
+      const end = text.indexOf('*/', cursor + 2)
+      if (end === -1) return true
+      if (/\r|\n/.test(text.slice(cursor, end + 2))) sawNewline = true
+      cursor = end + 2
+      continue
+    }
+    break
+  }
+  if (cursor >= text.length || ';,}'.includes(text[cursor])) return false
+  if (sawNewline && !'+-*/?.:('.includes(text[cursor])) return false
+  return true
 }
 
 function statementStart(mask, index) {
@@ -182,12 +224,12 @@ function collectJavaScript(text, language) {
     }
     if (!kind) continue
     const literal = readLiteral(text, operator, isShell || isPowerShell, { dynamicVariables: isShell || isPowerShell })
-    if (literal) addMatch(name, literal.value, nameIndex)
+    if (literal && (isShell || isPowerShell || !hasDynamicJavaScriptTail(text, literal.end))) addMatch(name, literal.value, nameIndex)
   }
   for (const key of quotedKeys) {
     const valueIndex = skipTrivia(text, key.valueIndex, { allowNewlines: true, language: 'javascript' })
     const literal = readLiteral(text, valueIndex, false)
-    if (literal) addMatch(key.name, literal.value, key.index)
+    if (literal && !hasDynamicJavaScriptTail(text, literal.end)) addMatch(key.name, literal.value, key.index)
   }
   return finish(matches)
 }
@@ -201,9 +243,6 @@ function collectShellLike(text, language) {
   for (const token of mask.matchAll(secretTokenPattern)) {
     const name = token[1]
     const nameIndex = token.index
-    const lineStart = Math.max(mask.lastIndexOf('\n', nameIndex - 1), mask.lastIndexOf(';', nameIndex - 1), mask.lastIndexOf('&', nameIndex - 1), mask.lastIndexOf('|', nameIndex - 1)) + 1
-    const prefix = mask.slice(lineStart, nameIndex)
-    if (!/^[\t ]*$/.test(prefix) && !/\b(?:export|set)\b/i.test(prefix)) continue
     let operator = skipTrivia(text, nameIndex + name.length, { allowNewlines: false, language: 'shell' })
     if (mask[operator] !== '=') continue
     operator = skipTrivia(text, operator + 1, { allowNewlines: false, language: 'shell' })
@@ -221,7 +260,7 @@ function collectPowerShell(text) {
     const name = match[1]
     const equals = match.index + match[0].lastIndexOf('=')
     const valueIndex = skipTrivia(text, equals + 1, { allowNewlines: true, language: 'powershell' })
-    const literal = readLiteral(text, valueIndex, true, { dynamicVariables: true })
+    const literal = readLiteral(text, valueIndex, true, { dynamicVariables: true, dynamicCommands: true })
     if (literal && !harmlessValue(literal.value)) matches.push({ index: match.index + match[0].toUpperCase().indexOf(name.toUpperCase()), line: lineAt(text, match.index), label: labelFor(name) })
   }
   return finish(matches)
@@ -234,7 +273,7 @@ function collectDotenv(text) {
     const name = token[1]
     const nameIndex = token.index
     const lineStart = mask.lastIndexOf('\n', nameIndex - 1) + 1
-    if (!/^[\t ]*$/.test(mask.slice(lineStart, nameIndex))) continue
+    if (!/^[\t ]*(?:export[\t ]+)?$/i.test(mask.slice(lineStart, nameIndex))) continue
     let operator = skipTrivia(text, nameIndex + name.length, { allowNewlines: false, language: 'shell' })
     if (mask[operator] !== '=') continue
     operator = skipTrivia(text, operator + 1, { allowNewlines: false, language: 'shell' })

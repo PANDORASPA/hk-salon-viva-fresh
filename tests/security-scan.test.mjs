@@ -150,3 +150,53 @@ test('security scan uses language-aware matchers for quoted object keys, multili
     { line: 1, label: 'Stripe secret key' },
   ])
 })
+
+test('security scan handles exhaustive bare, expression, dotenv, and PowerShell assignment cases', () => {
+  const key = 'SUPABASE_SERVICE_ROLE_KEY'
+  const stripe = 'STRIPE_SECRET_KEY'
+  const webhook = 'STRIPE_WEBHOOK_SECRET'
+  const cases = [
+    {
+      name: 'three bare shell assignments in any token position',
+      file: 'fixture.sh',
+      source: `${key}=bare-one ${stripe}=bare-two ${webhook}=bare-three`,
+      expected: [
+        { line: 1, label: 'Supabase service role key' },
+        { line: 1, label: 'Stripe secret key' },
+        { line: 1, label: 'Stripe webhook secret' },
+      ],
+    },
+    {
+      name: 'a callback URL stays a shell value before a later secret',
+      file: 'fixture.sh',
+      source: `CALLBACK=https://example.test/hook ${stripe}=after-url`,
+      expected: [{ line: 1, label: 'Stripe secret key' }],
+    },
+    {
+      name: 'dotenv accepts an optional export prefix',
+      file: '.env.example',
+      source: `export ${stripe}=dotenv-literal`,
+      expected: [{ line: 1, label: 'Stripe secret key' }],
+    },
+    {
+      name: 'a JavaScript literal concatenated with an environment read is dynamic',
+      file: 'fixture.ts',
+      source: `const ${key} = 'literal' + process.env.INTERNAL_SECRET`,
+      expected: [],
+    },
+    {
+      name: 'PowerShell hides block comments and skips commands while retaining static credentials',
+      file: 'fixture.ps1',
+      source: [
+        `<# $env:${stripe} = 'comment-only' #>`,
+        `$env:${stripe} = Get-Secret`,
+        `$env:${webhook} = powershell_static_credential`,
+      ].join('\n'),
+      expected: [{ line: 3, label: 'Stripe webhook secret' }],
+    },
+  ]
+
+  for (const { name, file, source, expected } of cases) {
+    assert.deepEqual(scanText(file, source), expected, name)
+  }
+})
