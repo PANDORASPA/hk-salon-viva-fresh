@@ -1,6 +1,19 @@
 const readJson = response => response.json().catch(() => ({}))
 const aborted = error => error?.name === 'AbortError'
 
+export function createBookingCalendarControllerLifecycle(createController) {
+  let active = null
+  const setup = () => {
+    active = createController()
+    return active
+  }
+  const cleanup = controller => {
+    controller?.dispose()
+    if (active === controller) active = null
+  }
+  return { setup, cleanup, current: () => active }
+}
+
 export function createBookingCalendarController({
   fetchImpl = fetch,
   getCriteria,

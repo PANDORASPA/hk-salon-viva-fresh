@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import { createBookingCalendarController } from '../app/admin/components/booking-calendar-controller.js'
+import { createBookingCalendarController, createBookingCalendarControllerLifecycle } from '../app/admin/components/booking-calendar-controller.js'
 
 const deferred = () => {
   let resolve
@@ -125,4 +125,49 @@ test('calendar controller skips mutation callbacks and refresh after disposal', 
 
   assert.equal(warnings, 0)
   assert.equal(refreshes, 0)
+})
+
+test('calendar lifecycle recreates a usable controller after Strict Effects replay', async () => {
+  // Mutation caught: permanently disposing the render-created controller
+  // makes the Strict Mode setup → cleanup → setup replay render no calendar.
+  const criteria = { current: { day: '2026-09-14', endDay: '2026-09-14', staffFilter: '', statusFilter: '', serviceFilter: '' } }
+  const requests = []
+  const mutation = deferred()
+  const shownRows = []
+  const lifecycle = createBookingCalendarControllerLifecycle(() => createBookingCalendarController({
+    getCriteria: () => criteria.current,
+    fetchImpl: url => {
+      if (url === '/api/admin/appointments') return mutation.promise
+      const next = deferred()
+      requests.push({ url, ...next })
+      return next.promise
+    },
+    onLoadSuccess: data => shownRows.push(data.rows),
+  }))
+
+  const first = lifecycle.setup()
+  const firstLoad = first.load(criteria.current)
+  lifecycle.cleanup(first)
+  const second = lifecycle.setup()
+  const replayLoad = second.load(criteria.current)
+  assert.notEqual(second, first)
+
+  criteria.current = { day: '2026-09-20', endDay: '2026-09-20', staffFilter: '7', statusFilter: 'confirmed', serviceFilter: '3' }
+  const filteredLoad = second.load(criteria.current)
+  const saving = second.mutate('POST', { id: 4 }, { refreshAfterMutation: true })
+  mutation.resolve(jsonResponse({ appointment: { id: 4 } }))
+  await saving
+
+  assert.equal(requests.length, 8)
+  assert.match(requests[6].url, /from=2026-09-20/)
+  assert.match(requests[6].url, /serviceId=3/)
+  requests[6].resolve(jsonResponse({ appointments: [{ id: 'strict-fresh' }] }))
+  requests[7].resolve(jsonResponse({ staff: [], services: [] }))
+  await new Promise(resolve => setImmediate(resolve))
+  for (const request of requests.slice(0, 6)) request.resolve(jsonResponse(request.url.includes('operations') ? { staff: [], services: [] } : { appointments: [{ id: 'stale' }] }))
+  await Promise.all([firstLoad, replayLoad, filteredLoad])
+
+  assert.deepEqual(shownRows, [[{ id: 'strict-fresh' }]])
+  lifecycle.cleanup(second)
+  assert.equal(lifecycle.current(), null)
 })

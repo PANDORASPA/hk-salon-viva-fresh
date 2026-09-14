@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { createBookingCalendarController } from './booking-calendar-controller.js'
+import { createBookingCalendarController, createBookingCalendarControllerLifecycle } from './booking-calendar-controller.js'
 
 const hkDay = date => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Hong_Kong', year: 'numeric', month: '2-digit', day: '2-digit' }).format(date)
 const validDay = value => /^\d{4}-\d{2}-\d{2}$/.test(value || '') && Number.isFinite(new Date(`${value}T00:00:00+08:00`).getTime())
@@ -22,7 +22,7 @@ export default function BookingCalendar() {
   criteriaRef.current = criteria
   const mounted = useRef(false)
   const calendar = useRef(null)
-  if (!calendar.current) calendar.current = createBookingCalendarController({
+  if (!calendar.current) calendar.current = createBookingCalendarControllerLifecycle(() => createBookingCalendarController({
     getCriteria: () => criteriaRef.current,
     onLoadStart: () => { setLoading(true); setError('') },
     onLoadSuccess: data => { setRows(data.rows); setStaff(data.staff); setServices(data.services) },
@@ -30,22 +30,36 @@ export default function BookingCalendar() {
     onLoadFinish: () => setLoading(false),
     onMutationSuccess: result => setNotificationWarning(Boolean(result.notificationWarning)),
     onMutationFailure: cause => setError(cause.message),
-  })
-  useEffect(() => { mounted.current = true; return () => { mounted.current = false; calendar.current.dispose() } }, [])
-  useEffect(() => { calendar.current.load(criteria); return () => calendar.current.cancel() }, [criteria])
+  }))
+  useEffect(() => {
+    mounted.current = true
+    const active = calendar.current.setup()
+    return () => { mounted.current = false; calendar.current.cleanup(active) }
+  }, [])
+  useEffect(() => {
+    const active = calendar.current.current()
+    active?.load(criteria)
+    return () => active?.cancel()
+  }, [criteria])
   const save = async (event, method) => {
     event.preventDefault(); setError(''); setNotificationWarning(false)
     const formNode = event.currentTarget; const form = Object.fromEntries(new FormData(formNode));
     const payload = { ...form, id: form.id ? Number(form.id) : undefined, serviceId: form.serviceId ? Number(form.serviceId) : undefined, staffPreference: form.staffPreference || 'any', startsAt: asHkIso(form.startsAt) }
     try {
-      await calendar.current.mutate(method, payload, { refreshAfterMutation: true })
-      if (!mounted.current) return
+      const active = calendar.current.current()
+      if (!active) return
+      await active.mutate(method, payload, { refreshAfterMutation: true })
+      if (!mounted.current || calendar.current.current() !== active) return
       formNode.reset(); setShowCreate(false)
     } catch {}
   }
   const changeStatus = async (id, status) => {
     setError(''); setNotificationWarning(false)
-    try { await calendar.current.mutate('PATCH', { id, status }, { refreshAfterMutation: true }) } catch {}
+    try {
+      const active = calendar.current.current()
+      if (!active) return
+      await active.mutate('PATCH', { id, status }, { refreshAfterMutation: true })
+    } catch {}
   }
   return (
     <section className="admin-module" aria-labelledby="calendar-title">
