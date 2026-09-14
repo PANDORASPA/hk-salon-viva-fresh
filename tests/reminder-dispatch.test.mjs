@@ -4,7 +4,7 @@ import test from 'node:test'
 import { dispatchReminders, reminderWindow } from '../lib/notifications/reminders.js'
 
 function reminderDb({ appointment, claim }) {
-  const seen = { ranges: [], claims: [], finalizations: [] }
+  const seen = { ranges: [], claims: [], reconciliations: [], finalizations: [] }
   return {
     seen,
     from(table) {
@@ -19,6 +19,10 @@ function reminderDb({ appointment, claim }) {
       throw new Error(`Unexpected table: ${table}`)
     },
     async rpc(name, args) {
+      if (name === 'reconcile_expired_ambiguous_reminders') {
+        seen.reconciliations.push(args)
+        return { data: [], error: null }
+      }
       if (name === 'find_retryable_reminder_appointments') return { data: [], error: null }
       if (name === 'finalize_reminder_notification') {
         seen.finalizations.push(args)
@@ -31,7 +35,7 @@ function reminderDb({ appointment, claim }) {
 }
 
 function retryReminderDb({ appointment, claim }) {
-  const seen = { retryQueries: [], claims: [], finalizations: [] }
+  const seen = { retryQueries: [], claims: [], reconciliations: [], finalizations: [] }
   return {
     seen,
     from(table) {
@@ -43,6 +47,10 @@ function retryReminderDb({ appointment, claim }) {
       return chain
     },
     async rpc(name, args) {
+      if (name === 'reconcile_expired_ambiguous_reminders') {
+        seen.reconciliations.push(args)
+        return { data: [], error: null }
+      }
       if (name === 'find_retryable_reminder_appointments') {
         seen.retryQueries.push(args)
         return { data: [appointment], error: null }
@@ -70,6 +78,7 @@ test('reminder dispatch uses a one-hour HK-safe instant window and records a pro
   assert.deepEqual(db.seen.ranges, ['2026-09-15T15:30:00.000Z', '2026-09-15T16:30:00.000Z'])
   assert.equal(db.seen.claims[0].name, 'claim_reminder_notification')
   assert.equal(db.seen.claims[0].args.p_reminder_window_hours, 24)
+  assert.deepEqual(db.seen.reconciliations, [{ p_now: '2026-09-14T15:30:00.000Z', p_limit: 50 }])
   assert.equal(sent.length, 1)
   assert.equal(sent[0].idempotencyKey, 'reminder:9:24')
   assert.deepEqual(result, { checked: 1, sent: 1, dry_run: 0, skipped: 0, failed: 0, items: [{ id: 9, status: 'sent', messageId: 'provider-77' }] })
