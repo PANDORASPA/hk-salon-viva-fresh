@@ -31,10 +31,12 @@ export function createAppointmentsHandler({
         serviceId: body.serviceId,
         staffPreference: body.staffPreference ?? body.staffId,
         startsAt: body.startsAt,
-        // Booking contact is distinct from identity. An email-only owned profile
-        // may need a submitted phone, but the body can never replace its ID.
+        // Booking contact is distinct from identity. A submitted name is validated
+        // by the command and stored only on this appointment, leaving profile
+        // edits intact. Omitted names use the owned profile's current name.
         customer: authenticatedCustomer ? {
           ...authenticatedCustomer,
+          name: Object.hasOwn(body, 'customerName') ? body.customerName : authenticatedCustomer.name,
           phone: authenticatedCustomer.phone || body.customerPhone,
         } : { name: body.customerName, phone: body.customerPhone, email: body.customerEmail },
         actorUserId,

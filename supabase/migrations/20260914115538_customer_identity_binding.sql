@@ -13,7 +13,12 @@ drop policy if exists "Admins manage customer_packages" on public.customer_packa
 alter table public.customers enable row level security;
 alter table public.customer_packages enable row level security;
 revoke all on public.customers, public.customer_packages from public, anon, authenticated;
-grant select on public.customers, public.customer_packages to authenticated;
+-- Table revocation does not remove pre-existing column grants. Clear those too
+-- before exposing the exact customer-visible projection to browser roles.
+revoke select(id,name,phone,email,notes,created_at,updated_at,user_id)
+  on public.customers from public, anon, authenticated;
+grant select(id,name,phone,email) on public.customers to authenticated;
+grant select on public.customer_packages to authenticated;
 grant update(name,phone,email) on public.customers to authenticated;
 grant select, insert, update, delete on public.customers, public.customer_packages to service_role;
 revoke all on sequence public.customers_id_seq, public.customer_packages_id_seq from public, anon, authenticated;
@@ -26,7 +31,9 @@ create policy customers_update_own on public.customers for update to authenticat
   with check ((select auth.uid()) = user_id);
 create policy customer_packages_read_own on public.customer_packages for select to authenticated
   using (exists (select 1 from public.customers c
-    where c.id = customer_id and c.user_id = (select auth.uid())));
+    -- The customers owner policy filters this subquery. Only id needs a browser
+    -- column grant; the private Auth binding remains unreadable to the caller.
+    where c.id = customer_id));
 
 -- Owners need the same public catalogue relations that guests can read.
 create policy packages_authenticated_active on public.packages for select to authenticated

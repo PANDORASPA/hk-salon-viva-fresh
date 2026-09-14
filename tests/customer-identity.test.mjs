@@ -9,6 +9,55 @@ async function identity() {
   return import('../lib/customers/identity.js')
 }
 
+for (const legacyGrants of [false, true]) {
+  test(`browser customer reads allow only UI fields, including after legacy grants=${legacyGrants}`, async t => {
+    const db = await bookingDatabase(t, { migrationTransform: (file, sql) => legacyGrants && file.endsWith('_customer_identity_binding.sql')
+      ? sql.replace('alter table public.customers alter column phone drop not null;', `alter table public.customers alter column phone drop not null;
+        grant select on public.customers to public, anon, authenticated;
+        grant select(notes,user_id,created_at,updated_at) on public.customers to public, anon, authenticated;`)
+      : sql })
+    await db.exec(`update public.customers set notes='Staff-only assessment' where id=1;
+      set role authenticated; set request.jwt.claim.sub='${ownerId}';`)
+    assert.deepEqual((await db.query('select id,name,phone,email from public.customers')).rows,
+      [{ id:1, name:'Owner', phone:'91234567', email:null }])
+    for (const field of ['notes','user_id','created_at','updated_at','*']) {
+      await assert.rejects(db.query(`select ${field} from public.customers`), error => error.code === '42501', `${field} must be private`)
+    }
+    assert.deepEqual((await db.query('select id from public.customer_packages')).rows,[{id:1}])
+    await db.exec('reset role; set role anon')
+    for (const field of ['id','notes','user_id']) await assert.rejects(db.query(`select ${field} from public.customers`), error => error.code === '42501')
+    await db.exec('reset role; set role service_role')
+    assert.equal((await db.query('select notes from public.customers where id=1')).rows[0].notes,'Staff-only assessment')
+  })
+}
+
+test('first signed-in booking preserves validated Chinese contact name without changing owned identity or profile', async t => {
+  const { createAppointmentsHandler } = await import('../app/api/appointments/route.js')
+  const db = await bookingDatabase(t)
+  const handler = createAppointmentsHandler({getServerClient:()=>authClient({id:adminId,email:'new@example.com',email_confirmed_at:'2026-01-01'}),getServiceClient:()=>customerClient(db),notify:async()=>{}})
+  const body = {serviceId:1,startsAt:await futureSlot(db),customerName:' 王大明 ',customerPhone:'93456789',customerId:2,actorUserId:otherId}
+  const request = value => new Request('http://localhost/api/appointments',{method:'POST',headers:{origin:'http://localhost','content-type':'application/json'},body:JSON.stringify(value)})
+  const response = await handler(request(body))
+  assert.equal(response.status,201)
+  const booking = (await response.json()).appointment
+  assert.equal(booking.customer_name,'王大明')
+  assert.equal(booking.user_id,adminId)
+  assert.notEqual(booking.customer_id,2)
+  assert.equal((await db.query('select customer_name from public.appointments where id=$1',[booking.id])).rows[0].customer_name,'王大明')
+  assert.equal((await db.query('select name from public.customers where id=$1',[booking.customer_id])).rows[0].name,'客戶')
+  const invalid = await handler(request({...body,startsAt:await futureSlot(db,4),customerName:' '}))
+  assert.equal(invalid.status,400)
+  // A later customer profile edit remains the default when a booking omits its
+  // contact name. A booking-specific name must never overwrite that profile.
+  await db.exec(`set role authenticated; set request.jwt.claim.sub='${adminId}'`)
+  await db.query("update public.customers set name='王小明' where id=$1",[booking.customer_id])
+  await db.exec('reset role')
+  const { customerName, ...withoutName } = body
+  const next = await handler(request({...withoutName,startsAt:await futureSlot(db,4)}))
+  assert.equal(next.status,201)
+  assert.equal((await next.json()).appointment.customer_name,'王小明')
+})
+
 test('PostgreSQL denies anonymous customer/package reads and limits owners to their own rows', async t => {
   const db = await bookingDatabase(t)
   await db.exec(`insert into public.customer_packages(customer_id,package_id,total_sessions,sessions_remaining,expires_at) values(2,1,2,2,now()+interval '10 days')`)

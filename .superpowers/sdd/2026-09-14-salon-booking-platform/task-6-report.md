@@ -71,3 +71,29 @@ Hosted Auth/PostgREST integration and Supabase advisors/migration-history checks
 - [Auth getUser](https://supabase.com/docs/reference/javascript/auth-getuser): server verification is performed by the Auth service.
 - [Row level security](https://supabase.com/docs/guides/database/postgres/row-level-security): grants and policies, ownership predicates, and UPDATE SELECT/USING/WITH CHECK requirements.
 - [Server-side Next.js client](https://supabase.com/docs/guides/auth/server-side/nextjs).
+
+## Fix Round 1 — Private columns and booking contact names
+
+Both Important review findings are addressed. This section supersedes the initial table-wide customer SELECT grant and English neutral-name behavior described above.
+
+### Changes
+
+- Authenticated browser customer SELECT is now limited to `id,name,phone,email`. `notes,user_id,created_at,updated_at` and `SELECT *` are denied with PostgreSQL 42501. Table-wide grants are revoked first; pre-existing SELECT column grants are explicitly revoked too, because revoking table grants alone does not remove those. Anonymous roles receive no customer columns. Service-role staff operations retain private-field access.
+- Customer RLS remains owner-only. Package ownership uses an `EXISTS` subquery selecting customer ID, with the customer owner policy filtering its rows. This avoids requiring a browser SELECT grant on the private Auth user_id column. The existing cross-owner package tests continue to pass.
+- Authenticated booking `customerName`, when present, goes through the existing command validation and is saved only as the appointment contact-name snapshot. It cannot replace customer ID or actor ID and does not overwrite the customer profile. A missing booking name uses the current owned `customers.name`; an explicitly invalid/blank submitted name is rejected instead of silently falling back. The neutral name for new owned customers is now `客戶`.
+- The future customer-editing contract is explicit: editing `customers.name` changes the default for subsequent bookings that omit a contact name; individual appointment names do not rewrite that profile. The separate existing `profiles.full_name` UI remains separate as previously documented, without adding a hidden synchronization or ownership-linking path.
+- The already CLI-created, not-yet-deployed Task 6 migration was amended. No additional migration, hosted write or live schema change was performed.
+
+### TDD and verification
+
+- RED: `node --test --test-name-pattern='browser customer reads|first signed-in booking' tests/customer-identity.test.mjs` — exit 1, 0/3 passed (11.9 seconds). Both normal and injected-legacy-grant cases failed because notes remained readable. The first-booking test failed with actual `Customer` versus expected `王大明`.
+- GREEN: `node --test tests/customer-identity.test.mjs tests/schema-security.test.mjs` — exit 0, 13/13 passed (31.5 seconds).
+- `npm run test:unit` — exit 0, 189/189 passed (71.1 seconds); output was displayed using `npm run test:unit 2>&1 | Select-Object -Last 16; exit $LASTEXITCODE`. All prior Task 5 SQL-chain tests remain included.
+- `npm run build` — exit 0; output was displayed using `npm run build 2>&1 | Select-Object -Last 85; exit $LASTEXITCODE`. Existing optional dependency warnings remain; no new build failure.
+- `git diff --check` — exit 0.
+
+The new executable database tests run actual `SET ROLE authenticated`, `anon` and `service_role` queries. They prove approved field reads, private-field denial, retained own-package reads and staff private access both normally and after injecting legacy table/column grants to PUBLIC, anon and authenticated. The new resolver → appointment route → migrated SQL test submits ` 王大明 ` with forged customer/actor IDs, verifies stored `王大明` plus the actual server-owned identity, rejects whitespace-only names, confirms the customer keeps `客戶`, and verifies an owned customer-name edit becomes a later omitted-name booking's default.
+
+Changed files: `supabase/migrations/20260914115538_customer_identity_binding.sql`, `lib/customers/identity.js`, `app/api/appointments/route.js`, `tests/customer-identity.test.mjs`, and this report.
+
+Self-review: browser query projections and nested package policy permissions are consistent; no private Auth binding grant was added to preserve package reads. Appointment contact-name input affects only a validated display/contact field. No ownership predicates, IDs, package authorization or persistent profile fields are sourced from that input. Local Supabase service/advisory limitations and pending Task 8 form integration remain as previously documented.
