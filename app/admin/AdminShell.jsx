@@ -13,9 +13,15 @@ import {
   SiteContentModule,
 } from '../components/admin/SalonAdminModules'
 import { CustomersModule, PackagesModule } from '../components/admin/SalonCustomerModules'
+import AdminNav from './components/AdminNav'
+import BookingCalendar from './components/BookingCalendar'
+import DashboardModule from './components/DashboardModule'
+import StaffModule from './components/StaffModule'
 
 const tabs = [
-  ['appointments', '預約'],
+  ['dashboard', '營運總覽'],
+  ['appointments', '預約日曆'],
+  ['staff', '員工及排班'],
   ['customers', '客戶'],
   ['packages', '套票'],
   ['services', '服務定價'],
@@ -28,7 +34,9 @@ const tabs = [
 ]
 
 const panels = {
-  appointments: AppointmentsModule,
+  dashboard: DashboardModule,
+  appointments: BookingCalendar,
+  staff: StaffModule,
   customers: CustomersModule,
   packages: PackagesModule,
   services: ServicesModule,
@@ -41,7 +49,7 @@ const panels = {
 }
 
 export default function AdminShell({ email }) {
-  const [active, setActive] = useState('appointments')
+  const [active, setActive] = useState('dashboard')
   const Panel = panels[active]
   const signOut = async () => {
     await getBrowserClient().auth.signOut()
@@ -61,11 +69,7 @@ export default function AdminShell({ email }) {
         </div>
       </header>
       <div className="salon-admin-workspace">
-        <aside>
-          {tabs.map(([id, label]) => (
-            <button className={active === id ? 'active' : ''} key={id} onClick={() => setActive(id)}>{label}</button>
-          ))}
-        </aside>
+        <aside><AdminNav tabs={tabs} active={active} onChange={setActive} /></aside>
         <section><Panel /></section>
       </div>
     </div>
