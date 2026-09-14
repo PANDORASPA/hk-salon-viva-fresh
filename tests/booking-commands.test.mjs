@@ -150,6 +150,53 @@ test('only service_role can execute commands and its explicit privileges suffice
   } finally { await db.exec('reset role') }
 })
 
+for (const legacyFunctionGrants of [false, true]) {
+  test(`every booking mutation signature denies browser execution (legacy function grants=${legacyFunctionGrants})`, async t => {
+    const db = await bookingDatabase(t, { legacyFunctionGrants })
+    const start = await futureSlot(db, 10)
+    const original = await createSql(db, packageInput)
+    const probes = [
+      ['create_salon_appointment', `select * from public.create_salon_appointment(1,$1::uuid,'Probe Customer','91234567',null,$2::timestamptz,'probe')`, [otherId,start]],
+      ['create_salon_appointment_with_package', `select * from public.create_salon_appointment_with_package($1::uuid,2,1,1,'Forged Customer','91234567',null,$2::timestamptz,'forged admin notes')`, [otherId,start]],
+      ['deduct_package_session', 'select public.deduct_package_session(1,$1)', [original.id]],
+      ['redeem_customer_package', 'select public.redeem_customer_package(1,$1)', [original.id]],
+      ['refund_customer_package', 'select public.refund_customer_package(1,$1)', [original.id]],
+      ['create_appointment_v2', `select * from public.create_appointment_v2(1,$1::timestamptz,'any','Probe Customer','91234567',null,null,null,null,'web',repeat('a',64),null)`, [start]],
+      ['reschedule_appointment_v2', `select * from public.reschedule_appointment_v2($1,$2::timestamptz,'any',$3::uuid)`, [original.id,start,ownerId]],
+      ['cancel_appointment_v2', 'select * from public.cancel_appointment_v2($1,$2::uuid)', [original.id,ownerId]],
+    ]
+    // Enumerate the actual installed signatures, not migration source text.
+    const catalog = (await db.query(`select p.proname, p.oid::regprocedure::text as signature,
+      has_function_privilege('service_role',p.oid,'execute') as service_allowed
+      from pg_proc p join pg_namespace n on n.oid=p.pronamespace
+      where n.nspname='public' and p.proname=any($1::text[]) order by p.proname`, [probes.map(([name]) => name)])).rows
+    assert.deepEqual(catalog.map(row => row.proname).sort(), probes.map(([name]) => name).sort())
+    for (const role of ['anon','authenticated']) {
+      await db.exec(`set role ${role}`)
+      try {
+        for (const [name, sql, params] of probes) {
+          await assert.rejects(db.query(sql, params), error => error.code === '42501', `${role} must not execute ${name}`)
+        }
+      } finally { await db.exec('reset role') }
+    }
+    assert.equal(catalog.every(row => row.service_allowed), true)
+    assert.equal((await db.query('select count(*)::int as count from public.appointments')).rows[0].count, 1)
+    assert.equal((await db.query('select sessions_remaining from public.customer_packages')).rows[0].sessions_remaining, 1)
+    assert.equal((await db.query('select count(*)::int as count from public.package_redemptions')).rows[0].count, 1)
+    await db.exec('set role service_role')
+    try {
+      const legacy = (await db.query(probes[0][1], probes[0][2])).rows[0]
+      assert.ok(legacy.id)
+      const packaged = (await db.query(`select * from public.create_salon_appointment_with_package($1::uuid,1,1,null,
+        'Legacy Customer','91234567',null,$2::timestamptz,'')`, [ownerId,await futureSlot(db,11)])).rows[0]
+      const redemption = (await db.query('select * from public.deduct_package_session(1,$1)', [packaged.id])).rows[0]
+      assert.equal(redemption.appointment_id, packaged.id)
+      await db.query('select public.refund_customer_package(1,$1)', [packaged.id])
+      assert.equal((await db.query('select sessions_remaining from public.customer_packages')).rows[0].sessions_remaining, 1)
+    } finally { await db.exec('reset role') }
+  })
+}
+
 test('failed cancellation status write rolls back its package refund and retains the old occupied slot', async t => {
   const db = await bookingDatabase(t)
   const original = await createSql(db, { ...packageInput, p_staff_preference: '1' })
@@ -267,4 +314,36 @@ test('account routes execute atomic reschedule/cancel with the verified actor an
   assert.equal((await handlers(ownerId).DELETE(request(null, 'DELETE'), params)).status, 200)
   assert.equal((await handlers(ownerId).DELETE(request(null, 'DELETE'), params)).status, 200)
   assert.equal((await db.query('select sessions_remaining from public.customer_packages')).rows[0].sessions_remaining, 2)
+})
+
+test('account PATCH validates the original date and time before conversion and keeps invalid requests unchanged', async t => {
+  const db = await bookingDatabase(t)
+  const { createAccountBookingHandlers } = await import('../app/api/account/bookings/[id]/route.js')
+  const original = await createSql(db, packageInput)
+  const target = await futureSlot(db, 4)
+  const validDate = new Date(target).toLocaleDateString('sv-SE', { timeZone:'Asia/Hong_Kong' })
+  const handlers = createAccountBookingHandlers({ getServiceClient: () => rpcClient(db), notify: async () => {},
+    getServerClient: async () => ({ auth:{getUser: async () => ({data:{user:{id:ownerId}}})} }) })
+  const context = { params:Promise.resolve({id:String(original.id)}) }
+  const invalid = [
+    {date:'2026-09-31',time:'10:00'}, {date:'2027-02-29',time:'10:00'},
+    {date:'2026-13-01',time:'10:00'}, {date:validDate,time:'24:00'},
+    {date:validDate,time:'24:30'}, {date:validDate,time:'10:60'},
+    {date:validDate,time:'23:90'}, {date:validDate,time:'1:00'},
+    {date:` ${validDate}`,time:'10:00'}, {date:`${validDate} `,time:'10:00'},
+    {date:validDate,time:' 10:00'}, {date:validDate,time:'10:00 '},
+    {date:validDate,time:'10:00:00'}, {date:validDate,time:'10:00extra'},
+    {date:[validDate],time:'10:00'}, {date:validDate,time:['10:00']},
+  ]
+  for (const body of invalid) {
+    const response = await handlers.PATCH(request(body,'PATCH'), context)
+    assert.equal(response.status, 400, JSON.stringify(body))
+    assert.equal((await response.json()).code, 'validation_error', JSON.stringify(body))
+    assert.deepEqual((await db.query('select * from public.appointments where id=$1',[original.id])).rows[0], original)
+    assert.equal((await db.query('select sessions_remaining from public.customer_packages')).rows[0].sessions_remaining, 1)
+    assert.equal((await db.query('select count(*)::int as count from public.package_redemptions where refunded_at is null')).rows[0].count, 1)
+  }
+  const valid = await handlers.PATCH(request({date:validDate,time:'10:00'},'PATCH'), context)
+  assert.equal(valid.status, 200)
+  assert.equal((await valid.json()).booking.starts_at, target)
 })

@@ -10,7 +10,7 @@ const directory = new URL('../../supabase/migrations/', import.meta.url)
 
 // Only Supabase-owned infrastructure is stubbed. Every application migration
 // is executed unmodified, in filename order, including the historical RPCs.
-export async function bookingDatabase(t, { bindCustomer = true, migrationTransform = (_file, sql) => sql } = {}) {
+export async function bookingDatabase(t, { bindCustomer = true, legacyFunctionGrants = false, migrationTransform = (_file, sql) => sql } = {}) {
   const db = new PGlite({ extensions: { btree_gist, pgcrypto } })
   t.after(() => db.close())
   await db.exec(`
@@ -24,6 +24,11 @@ export async function bookingDatabase(t, { bindCustomer = true, migrationTransfo
       file_size_limit bigint, allowed_mime_types text[]);
     create table storage.objects (id uuid primary key, bucket_id text);
   `)
+  if (legacyFunctionGrants) {
+    // Older projects may explicitly grant EXECUTE to browser roles at function
+    // creation. Revoking PUBLIC alone does not remove those inherited grants.
+    await db.exec('alter default privileges in schema public grant execute on functions to anon, authenticated')
+  }
   const files = (await readdir(directory)).filter(file => file.endsWith('.sql')).sort()
   for (const file of files) {
     try { await db.exec(migrationTransform(file, await readFile(new URL(file, directory), 'utf8'))) }

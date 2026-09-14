@@ -4,7 +4,20 @@ import { guardMutationRequest } from '../../../../../lib/security/request-guards
 import { BookingCommandError, bookingCommandResponse, positiveBookingId, publicAppointment,
   rescheduleAppointment, cancelAppointment } from '../../../../../lib/booking/commands.js'
 import { sendBookingNotification } from '../../../../../lib/notifications/notify.js'
-import salonAvailability from '../../../../../lib/booking/salon-availability.js'
+
+function localStartsAt(date, time) {
+  if (typeof date !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(date)
+    || typeof time !== 'string' || !/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(time)) {
+    throw new BookingCommandError('validation_error')
+  }
+  const calendar = new Date(`${date}T00:00:00Z`)
+  if (!Number.isFinite(calendar.getTime()) || calendar.toISOString().slice(0,10) !== date) {
+    throw new BookingCommandError('validation_error')
+  }
+  // Preserve the validated local fields. A permissive Date.UTC conversion
+  // would normalize September 31, 24:xx or overflowing minutes into a new slot.
+  return `${date}T${time}:00+08:00`
+}
 
 export function createAccountBookingHandlers({
   getServerClient: serverClient = getServerClient,
@@ -45,8 +58,7 @@ export function createAccountBookingHandlers({
         if (!body || typeof body !== 'object' || Array.isArray(body)) throw new BookingCommandError('validation_error')
         let startsAt = body.startsAt
         if (!startsAt && body.date && body.time) {
-          try { startsAt = salonAvailability.hkLocalToIso(body.date, body.time) }
-          catch { throw new BookingCommandError('validation_error') }
+          startsAt = localStartsAt(body.date, body.time)
         }
         const booking = await rescheduleAppointment(await serviceClient(), {
           appointmentId, startsAt, staffPreference: body.staffPreference ?? body.staffId,

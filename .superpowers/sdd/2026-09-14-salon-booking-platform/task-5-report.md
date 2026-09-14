@@ -191,3 +191,110 @@ appointment/redemption and zero remaining sessions.
   custom static Cache-Control build warnings remain unchanged and non-fatal.
 
 Commit: recorded in the completion message after staging all Task 5 files.
+
+## Fix Round 1 — legacy RPC permissions and original local-date validation
+
+Both reviewer findings were reproduced before changing production code.
+
+### Root causes and fixes
+
+The historical `create_salon_appointment_with_package(uuid,bigint,bigint,bigint,
+text,text,text,timestamptz,text)` is SECURITY DEFINER and had no execution revoke.
+Restricting its inner deduction function did not restrict the wrapper, which
+calls it with the wrapper owner's privileges. The old
+`create_salon_appointment(bigint,uuid,text,text,text,timestamptz,text)` revoked
+PUBLIC only; explicit grants inherited from older default privileges remained.
+
+Audited the full migration chain's five legacy booking mutation signatures:
+create_salon_appointment, create_salon_appointment_with_package,
+deduct_package_session, redeem_customer_package and refund_customer_package.
+The new command migration now explicitly revokes all five from PUBLIC, anon and
+authenticated, including both creation wrappers. It explicitly grants their
+known signatures to service_role for trusted legacy server compatibility. The
+current routes continue to use only the validated v2 commands. No function or
+customer data is dropped, and no global default grants for unrelated APIs change.
+
+The account PATCH `{date,time}` branch used hkLocalToIso, whose Date.UTC call
+normalizes invalid calendar/clock components. Strict validation afterward saw
+the normalized valid date rather than the original user value. That branch now
+checks exact string formats, 00–23 hours and 00–59 minutes, and confirms the
+calendar date round-trips unchanged before constructing the explicit HK-offset
+timestamp. It no longer calls the permissive converter. The original `startsAt`
+branch retains the command wrapper's strict validation.
+
+### RED/GREEN evidence
+
+```text
+node --test --test-name-pattern='every booking mutation|original date and time' tests/booking-commands.test.mjs
+3 tests, 0 pass, 3 fail; exit 1; duration_ms 11728.9403
+```
+
+RED failures were:
+
+- Missing rejection: anon executed create_salon_appointment_with_package with
+  a forged user/admin note, another customer's package and an inapplicable
+  service.
+- With older default EXECUTE grants enabled, anon also executed
+  create_salon_appointment.
+- The real account PATCH route accepted September 31 and returned 200 instead
+  of 400, changing the appointment to the normalized October date.
+
+```text
+node --test --test-name-pattern='every booking mutation' tests/booking-commands.test.mjs
+2 passed, 0 failed; exit 0; duration_ms 7942.2067
+
+node --test --test-name-pattern='original date and time' tests/booking-commands.test.mjs
+1 passed, 0 failed; exit 0; duration_ms 5133.8815
+```
+
+The permission tests enumerate eight installed mutation signatures from the
+PostgreSQL catalog (five legacy plus three v2), then actually execute each under
+SET ROLE anon and SET ROLE authenticated and require SQLSTATE 42501. This runs
+with normal privileges and with explicit older default EXECUTE grants. They
+also verify unchanged appointment/redemption counts and package balance after
+browser attempts, all eight service-role execution grants, and actual legacy
+server create/package/deduct/redeem/refund behavior. Existing tests continue to
+execute create/reschedule/cancel as service_role.
+
+The new route test exercises 16 invalid date/time shapes, including September
+31, a non-leap February 29, month 13, 24:00/24:30, overflowing minutes, unpadded
+hours, padded values, seconds/suffixes and array inputs. Each returns stable
+400 validation_error and preserves the entire original appointment, balance and
+unrefunded ledger. A valid `{date,time}` control then reschedules successfully
+through the same production route, command wrapper and real SQL.
+
+### Changed files
+
+- `supabase/migrations/20260914110338_booking_commands.sql`
+- `app/api/account/bookings/[id]/route.js`
+- `tests/booking-commands.test.mjs`
+- `tests/helpers/booking-database.mjs`
+- This report.
+
+### Final verification
+
+```text
+node --test tests/booking-commands.test.mjs tests/package-usage.test.mjs tests/appointment-validation.test.mjs
+26 passed, 0 failed, 0 skipped; exit 0; duration_ms 75941.4001
+
+npm run test:unit
+180 passed, 0 failed, 0 skipped; exit 0; duration_ms 74624.7615
+
+npm run build
+exit 0; Next.js 16.3.4 compiled in 13.7s, completed type checking and generated all pages
+
+git diff --check
+exit 0
+
+npx supabase db advisors --local
+exit 1; existing local-server limitation: ECONNREFUSED 127.0.0.1:54322
+```
+
+Self-review confirms that the canonical migration inventory contains five
+legacy and three v2 booking mutation signatures, every one is exercised by the
+role tests, and both browser roles lose inherited as well as PUBLIC access.
+The strict local date/time path preserves valid HK inputs and rejects invalid
+ones before any normalization or database mutation. The existing module-type
+and optional resend/stripe/static Cache-Control build warnings remain non-fatal.
+No hosted database or deployment was changed; the previous PGlite single-backend
+and advisor limitations are unchanged. Both Fix Round 1 findings are addressed.

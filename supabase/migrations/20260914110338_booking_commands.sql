@@ -273,7 +273,15 @@ revoke all on function public.booking_customer_owner(bigint),
   public.create_appointment_v2(bigint,timestamptz,text,text,text,text,bigint,uuid,bigint,text,text,text),
   public.reschedule_appointment_v2(bigint,timestamptz,text,uuid),
   public.cancel_appointment_v2(bigint,uuid) from public,anon,authenticated;
-revoke all on function public.refund_customer_package(bigint,bigint),
+-- Audit of all five legacy booking mutation signatures in the migration chain.
+-- The package wrapper was originally created with PUBLIC execution; the core
+-- create RPC only revoked PUBLIC, leaving old explicit/default role grants.
+-- Revoke each browser role as well as PUBLIC, even for SECURITY DEFINER wrappers
+-- which can call the already-restricted package helpers as their owner.
+revoke all on function
+  public.create_salon_appointment(bigint,uuid,text,text,text,timestamptz,text),
+  public.create_salon_appointment_with_package(uuid,bigint,bigint,bigint,text,text,text,timestamptz,text),
+  public.refund_customer_package(bigint,bigint),
   public.redeem_customer_package(bigint,bigint),public.deduct_package_session(bigint,bigint)
   from public,anon,authenticated;
 grant execute on function public.booking_customer_owner(bigint),
@@ -283,6 +291,13 @@ grant execute on function public.booking_customer_owner(bigint),
   public.create_appointment_v2(bigint,timestamptz,text,text,text,text,bigint,uuid,bigint,text,text,text),
   public.reschedule_appointment_v2(bigint,timestamptz,text,uuid),
   public.cancel_appointment_v2(bigint,uuid) to service_role;
-grant execute on function public.refund_customer_package(bigint,bigint) to service_role;
+-- Retain the known legacy signatures only for trusted server compatibility.
+-- All current customer routes use the validated v2 commands above.
+grant execute on function
+  public.create_salon_appointment(bigint,uuid,text,text,text,timestamptz,text),
+  public.create_salon_appointment_with_package(uuid,bigint,bigint,bigint,text,text,text,timestamptz,text),
+  public.refund_customer_package(bigint,bigint),
+  public.redeem_customer_package(bigint,bigint),public.deduct_package_session(bigint,bigint)
+  to service_role;
 
 commit;
