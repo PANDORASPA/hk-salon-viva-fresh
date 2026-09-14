@@ -115,6 +115,67 @@ test('staff command rejects deactivation with a future active appointment and br
   } finally { await db.exec('reset role') }
 })
 
+test('audited deactivation uses the future occupied range and rolls back without an audit on conflict', async t => {
+  // Mutation caught: deactivating during treatment or its buffer because the
+  // command considered only starts_at, despite the booking trigger using the
+  // effective occupied end.
+  const db = await bookingDatabase(t)
+  const deactivate = async () => {
+    await db.exec('set role service_role')
+    try {
+      return await callSql(db, 'admin_update_staff_audited', {
+        p_actor_id: adminId, p_staff_id: 1, p_name: '預設員工', p_display_name: 'SALON POKE 團隊', p_bio: null,
+        p_colour_hex: '#a98152', p_is_active: false, p_sort_order: 0, p_service_ids: [1, 2],
+      })
+    } finally { await db.exec('reset role') }
+  }
+  const auditCount = async () => (await db.query(`select count(*)::int as count from public.admin_audit_logs
+    where action='staff.update' and target_id='1'`)).rows[0].count
+  const beforeAudit = await auditCount()
+
+  const ongoing = (await db.query(`insert into public.appointments
+    (service_id,staff_id,customer_name,customer_phone,starts_at,ends_at,buffer_minutes,occupied_until,status)
+    values (1,1,'Ongoing Guest','91234567',now()-interval '30 minutes',now()+interval '30 minutes',15,now(),'confirmed')
+    returning id, occupied_until`)).rows[0]
+  assert.ok(ongoing.occupied_until > new Date())
+  await assert.rejects(deactivate(), error => error.message === 'staff_has_future_appointments')
+  assert.equal((await db.query('select is_active from public.staff where id=1')).rows[0].is_active, true)
+  assert.equal(await auditCount(), beforeAudit)
+  await db.query('delete from public.appointments where id=$1', [ongoing.id])
+
+  const buffered = (await db.query(`insert into public.appointments
+    (service_id,staff_id,customer_name,customer_phone,starts_at,ends_at,buffer_minutes,occupied_until,status)
+    values (1,1,'Buffered Guest','92345678',now()-interval '2 hours',now()-interval '5 minutes',30,now(),'confirmed')
+    returning id, ends_at, occupied_until`)).rows[0]
+  assert.ok(buffered.ends_at < new Date())
+  assert.ok(buffered.occupied_until > new Date())
+  await assert.rejects(deactivate(), error => error.message === 'staff_has_future_appointments')
+  assert.equal((await db.query('select is_active from public.staff where id=1')).rows[0].is_active, true)
+  assert.equal(await auditCount(), beforeAudit)
+  await db.query('delete from public.appointments where id=$1', [buffered.id])
+
+  await db.exec('begin')
+  try {
+    const historical = (await db.query(`insert into public.appointments
+      (service_id,staff_id,customer_name,customer_phone,starts_at,ends_at,buffer_minutes,occupied_until,status)
+      values (1,1,'Historic Guest','93456789',now()-interval '3 hours',now()-interval '2 hours',15,now(),'confirmed')
+      returning id, occupied_until`)).rows[0]
+    const expiryBoundary = (await db.query(`insert into public.appointments
+      (service_id,staff_id,customer_name,customer_phone,starts_at,ends_at,buffer_minutes,occupied_until,status)
+      values (1,1,'Expiry Guest','94567890',now()-interval '75 minutes',now()-interval '15 minutes',15,now(),'confirmed')
+      returning id, occupied_until`)).rows[0]
+    assert.equal((await db.query('select $1::timestamptz <= now() as expired', [historical.occupied_until])).rows[0].expired, true)
+    assert.equal((await db.query('select $1::timestamptz <= now() as expired', [expiryBoundary.occupied_until])).rows[0].expired, true)
+    assert.ok((await deactivate()).id)
+    await db.exec('commit')
+  } catch (error) {
+    await db.exec('rollback')
+    throw error
+  }
+  assert.equal((await db.query('select is_active from public.staff where id=1')).rows[0].is_active, false)
+  assert.equal(await auditCount(), beforeAudit + 1)
+})
+
 test('admin route factories guard mutation, require admin context, persist an audit, and use allowlisted RPC input', async t => {
   // Mutation caught: reaching the database before CSRF/origin protection,
   // accepting browser-only fields, skipping the active-admin check, or failing
