@@ -247,3 +247,41 @@ test('staff create route reports success only after the database records its aud
   assert.deepEqual((await db.query(`select action, target_id from public.admin_audit_logs
     where action='staff.create' and target_id=$1`, [String(staff.id)])).rows, [{ action: 'staff.create', target_id: String(staff.id) }])
 })
+
+for (const legacyInsertGrant of [false, true]) {
+  test(`browser roles cannot forge an admin audit row even with a legacy INSERT grant=${legacyInsertGrant}`, async t => {
+    // Mutation caught: a browser client posing as an admin and inserting a
+    // forged staff action/metadata directly into the audit table.
+    const db = await bookingDatabase(t)
+    if (legacyInsertGrant) await db.exec('grant insert on public.admin_audit_logs to authenticated')
+    await db.query(`select set_config('request.jwt.claim.sub', $1, false)`, [adminId])
+    await db.exec('set role authenticated')
+    try {
+      await assert.rejects(db.query(`insert into public.admin_audit_logs
+        (actor_id,actor_user_id,action,entity_type,target_table,target_id,metadata)
+        values ($1,$1,'staff.delete','staff','staff','1','{"forged":true}'::jsonb)`, [adminId]),
+      error => error.code === '42501')
+      assert.equal((await db.query(`select count(*)::int as count from public.admin_audit_logs
+        where action='staff.delete'`)).rows[0].count, 0)
+    } finally { await db.exec('reset role') }
+
+    await db.exec('set role service_role')
+    let created
+    try {
+      created = await callSql(db, 'admin_create_staff_audited', {
+        p_actor_id: adminId, p_name: 'Secure Audit Staff', p_display_name: 'Secure', p_bio: null,
+        p_colour_hex: '#112233', p_is_active: true, p_sort_order: 8, p_service_ids: [1],
+      })
+    } finally { await db.exec('reset role') }
+    await db.exec('set role authenticated')
+    try {
+      assert.deepEqual((await db.query(`select actor_id, action, target_id from public.admin_audit_logs
+        where target_id=$1`, [String(created.id)])).rows, [{ actor_id: adminId, action: 'staff.create', target_id: String(created.id) }])
+    } finally { await db.exec('reset role') }
+    await db.query(`select set_config('request.jwt.claim.sub', $1, false)`, [otherId])
+    await db.exec('set role authenticated')
+    try {
+      assert.deepEqual((await db.query('select id from public.admin_audit_logs where target_id=$1', [String(created.id)])).rows, [])
+    } finally { await db.exec('reset role') }
+  })
+}

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { createHash } from 'node:crypto'
-import { bookingDatabase, createSql, callSql, futureSlot, rpcClient, ownerId, otherId } from './helpers/booking-database.mjs'
+import { bookingDatabase, createSql, callSql, futureSlot, rpcClient, ownerId, otherId, adminId } from './helpers/booking-database.mjs'
 
 test('full migration chain replays and legacy return-type replacement is callable', async t => {
   const db = await bookingDatabase(t, { bindCustomer: false })
@@ -244,6 +244,33 @@ test('booking rechecks an active staff row at write time after candidate selecti
   await db.exec('drop trigger aaa_deactivate_before_booking_insert on public.appointments; update public.staff set is_active=false where id=1')
   await assert.rejects(db.query(`select * from public.create_salon_appointment(1,null,'Legacy Guest','91234567',null,$1::timestamptz,null)`,
     [await futureSlot(db, 5)]), error => error.message === 'staff_unavailable')
+})
+
+test('moving a past confirmed appointment into the future cannot bypass inactive-staff enforcement', async t => {
+  // Mutation caught: a timestamp-only edit making a historic confirmed
+  // appointment future-active after its staff member was safely deactivated.
+  const db = await bookingDatabase(t)
+  const past = (await db.query(`select now() - interval '3 hours' as starts_at,
+    now() - interval '2 hours' as ends_at`)).rows[0]
+  const appointment = (await db.query(`insert into public.appointments
+    (service_id,staff_id,customer_name,customer_phone,starts_at,ends_at,occupied_until,status)
+    values (1,1,'Historic Guest','91234567',$1,$2,$2,'confirmed') returning id, starts_at, ends_at`,
+    [past.starts_at, past.ends_at])).rows[0]
+  await callSql(db, 'admin_update_staff_audited', {
+    p_actor_id: adminId, p_staff_id: 1, p_name: '預設員工', p_display_name: 'SALON POKE 團隊', p_bio: null,
+    p_colour_hex: '#a98152', p_is_active: false, p_sort_order: 0, p_service_ids: [1, 2],
+  })
+  const future = await futureSlot(db, 7)
+  await db.exec('set role service_role')
+  try {
+    await assert.rejects(db.query(`update public.appointments set starts_at=$1::timestamptz,
+      ends_at=$1::timestamptz + interval '1 hour', occupied_until=$1::timestamptz + interval '1 hour' where id=$2`,
+      [future, appointment.id]), error => error.message === 'staff_unavailable')
+  } finally { await db.exec('reset role') }
+  assert.deepEqual((await db.query('select starts_at, ends_at from public.appointments where id=$1', [appointment.id])).rows[0], {
+    starts_at: appointment.starts_at, ends_at: appointment.ends_at,
+  })
+  assert.equal((await db.query('select is_active from public.staff where id=1')).rows[0].is_active, false)
 })
 
 test('wrapper stores only SHA-256 of a random 32-byte confirmation token and sanitizes errors/appointment', async t => {
