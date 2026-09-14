@@ -99,3 +99,43 @@ Result: all exited 0. Git emitted only the repository's line-ending notice for t
 
 - The repository has pre-existing Node `MODULE_TYPELESS_PACKAGE_JSON` test warnings and build warnings for optional `resend`/`stripe` packages and custom Cache-Control headers. They are outside Task 4 and did not affect exit status.
 - `app_settings` currently stores legacy `booking_buffer_minutes`; the loader also accepts the planned snake/camel-case step, lead-time, and horizon keys so the availability engine retains its documented defaults until those settings are present.
+
+## Fix Round 1 — Midnight-spanning appointment occupancy
+
+### Root cause
+
+The appointment query constrained `starts_at >=` the requested Hong Kong day start. The database occupancy range can begin before midnight and end after it, so that filter removed a row before `buildStaffAvailability` could evaluate its `occupied_until`. This allowed an overlapping midnight slot to appear available.
+
+The controlled Supabase query double previously compared timestamp text lexically. It now parses timestamp operands and compares instants, matching PostgreSQL `timestamptz` behavior while leaving dates and clock-only strings on their natural comparison path.
+
+### RED
+
+```text
+node --test tests/availability-api-v2.test.mjs
+```
+
+Result: exit 1; 15 tests ran, 14 passed and the new route regression failed. Actual labels were `['00:00', '00:30', '01:00', '01:30']`; the hand-derived safe result excluded the overlapping `00:00` slot.
+
+Mutation caught: restoring `starts_at >= window.start` (or omitting the `occupied_until > window.start` intersection bound) makes the regression fail by admitting `00:00`.
+
+### GREEN
+
+The appointment query now loads active occupancy intersecting the requested day using the half-open conditions `starts_at < window.end` and `occupied_until > window.start`. Its safe projection remains `staff_id,starts_at,occupied_until,status`.
+
+```text
+node --test tests/availability-api-v2.test.mjs
+```
+
+Result: exit 0; 15 passed, 0 failed.
+
+```text
+node --test tests/availability-api-v2.test.mjs tests/booking-platform-baseline.test.mjs
+```
+
+Result: exit 0; 17 passed, 0 failed.
+
+```text
+npm run test:unit
+```
+
+Result: exit 0; 161 passed, 0 failed, 0 skipped. Pre-existing module-type warnings remain unchanged.

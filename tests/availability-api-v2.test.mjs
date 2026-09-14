@@ -67,13 +67,17 @@ function createQueryDatabase(fixtures, { errors = {}, gate } = {}) {
       for (const [operator, column, wanted] of this.filters) {
         rows = rows.filter((row) => {
           const actual = row[column]
+          const actualInstant = typeof actual === 'string' && actual.includes('T') ? Date.parse(actual) : NaN
+          const wantedInstant = typeof wanted === 'string' && wanted.includes('T') ? Date.parse(wanted) : NaN
+          const left = Number.isFinite(actualInstant) && Number.isFinite(wantedInstant) ? actualInstant : actual
+          const right = Number.isFinite(actualInstant) && Number.isFinite(wantedInstant) ? wantedInstant : wanted
           if (operator === 'eq') return actual === wanted
           if (operator === 'neq') return actual !== wanted
           if (operator === 'in') return wanted.includes(actual)
-          if (operator === 'gt') return actual > wanted
-          if (operator === 'gte') return actual >= wanted
-          if (operator === 'lt') return actual < wanted
-          if (operator === 'lte') return actual <= wanted
+          if (operator === 'gt') return left > right
+          if (operator === 'gte') return left >= right
+          if (operator === 'lt') return left < right
+          if (operator === 'lte') return left <= right
           return true
         })
       }
@@ -224,6 +228,36 @@ test('availability limits slots to a positive integer staff preference', async (
   assert.deepEqual(result.body.staffAvailability, {
     1: ['2026-09-16T10:30:00+08:00', '2026-09-16T11:00:00+08:00', '2026-09-16T11:30:00+08:00'],
   })
+})
+
+test('availability removes midnight slots occupied by an appointment that starts the previous day', async () => {
+  // Mutation caught: filtering appointments by starts_at >= day start instead of occupied-range intersection.
+  const { createAvailabilityHandler } = await import('../app/api/availability/route.js')
+  const fixtures = structuredClone(routeFixtures)
+  fixtures.staff_weekly_hours = [
+    { staff_id: 1, weekday: 3, is_working: true, starts_at: '00:00', ends_at: '02:00' },
+  ]
+  fixtures.business_hours = [
+    { weekday: 3, is_open: true, opens_at: '00:00', closes_at: '02:00' },
+  ]
+  fixtures.appointments = [{
+    id: 88,
+    staff_id: 1,
+    customer_name: 'Private Previous-day Customer',
+    starts_at: '2026-09-15T23:30:00+08:00',
+    ends_at: '2026-09-16T00:15:00+08:00',
+    occupied_until: '2026-09-16T00:30:00+08:00',
+    status: 'confirmed',
+  }]
+  const { db } = createQueryDatabase(fixtures)
+  const handler = createAvailabilityHandler({
+    getServiceClient: () => db,
+    now: () => new Date('2026-09-14T10:00:00+08:00'),
+    logger: { error() {} },
+  })
+  const result = await responseJson(await handler(new Request('http://localhost/api/availability?date=2026-09-16&serviceId=7&staffId=1')))
+  assert.equal(result.status, 200)
+  assert.deepEqual(result.body.slots.map((slot) => slot.label), ['00:30', '01:00', '01:30'])
 })
 
 for (const staffId of ['0', '-1', '1.5', 'abc', ' ANY ']) {
