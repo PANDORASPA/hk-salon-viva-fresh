@@ -1,6 +1,8 @@
 'use client'
-import { useState } from 'react'
+import { useEffect, useReducer, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { accountBookingsReducer } from './account-booking-state'
+import { submitAccountReschedule } from './reschedule-submission'
 
 function hongKongInputDateTime(startsAt) {
   if (!startsAt) return ''
@@ -14,23 +16,15 @@ function bookingTime(startsAt) {
   }) : '時間待確認'
 }
 
-async function availableSlot({ date, serviceId, staffId, startsAt }) {
-  if (!serviceId) return { staffPreference: staffId || 'any' }
-  const response = await fetch(`/api/availability?date=${encodeURIComponent(date)}&serviceId=${encodeURIComponent(serviceId)}&staffId=${encodeURIComponent(staffId || 'any')}`)
-  const body = await response.json()
-  if (!response.ok) throw new Error(body.error || '暫時無法載入可預約時段。')
-  const slot = body.slots?.find((item) => item.iso === startsAt)
-  if (!slot) throw new Error('你選擇的時段已不可預約；原有預約仍然保留。')
-  return { staffPreference: slot.staffIds?.includes(staffId) ? staffId : 'any' }
-}
-
 /** Client-side account list. Mutations preserve the rendered old slot until the server command succeeds. */
 export default function BookingsClient({ initialBookings = [] }) {
   const router = useRouter()
-  const [items, setItems] = useState(initialBookings)
+  const [items, dispatch] = useReducer(accountBookingsReducer, initialBookings)
   const [busyId, setBusyId] = useState(null)
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
+
+  useEffect(() => { dispatch({ type: 'SERVER_REFRESH', bookings: initialBookings }) }, [initialBookings])
 
   const cancel = async (id) => {
     if (!confirm('確定取消呢個預約？如符合取消期限，使用套票的次數會自動退還。')) return
@@ -44,7 +38,7 @@ export default function BookingsClient({ initialBookings = [] }) {
         }
         throw new Error(body.error || '取消失敗')
       }
-      setItems((previous) => previous.map((booking) => booking.id === id ? body.booking : booking))
+      dispatch({ type: 'BOOKING_UPDATED', booking: body.booking })
       setMessage(body.packageRefunded ? '已取消，套票次數已退還。' : '已取消。')
       router.refresh()
     } catch (caught) { setError(caught.message) } finally { setBusyId(null) }
@@ -55,24 +49,18 @@ export default function BookingsClient({ initialBookings = [] }) {
     if (!input) return
     const match = input.match(/^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2})$/)
     if (!match) { setError('日期時間格式唔啱，請用 YYYY-MM-DDTHH:mm。'); return }
-    const startsAt = `${match[1]}T${match[2]}:00+08:00`
     setBusyId(booking.id); setError(''); setMessage('')
     try {
-      // The public availability endpoint is advisory only. The atomic server
-      // command remains authoritative and keeps this old booking on a 409.
-      const { staffPreference } = await availableSlot({
-        date: match[1], serviceId: booking.serviceId, staffId: booking.staffId, startsAt,
+      // Only the atomic command can decide availability while retaining the
+      // old slot. A public preflight cannot exclude this appointment itself.
+      const result = await submitAccountReschedule({
+        fetcher: fetch, bookingId: booking.id, date: match[1], time: match[2], staffPreference: booking.staffId || 'any',
       })
-      const response = await fetch(`/api/account/bookings/${booking.id}`, {
-        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ date: match[1], time: match[2], staffPreference }),
-      })
-      const body = await response.json()
-      if (!response.ok) {
-        if (response.status === 409) throw new Error(`${body.error || '改期失敗'} 原有預約仍然保留。`)
-        throw new Error(body.error || '改期失敗')
+      if (!result.ok) {
+        if (result.status === 409) throw new Error(`${result.error} 原有預約仍然保留。`)
+        throw new Error(result.error)
       }
-      setItems((previous) => previous.map((item) => item.id === booking.id ? body.booking : item))
+      dispatch({ type: 'BOOKING_UPDATED', booking: result.booking })
       setMessage('已成功改期。')
       router.refresh()
     } catch (caught) { setError(caught.message) } finally { setBusyId(null) }

@@ -6,6 +6,13 @@ import { BookingCommandError, bookingCommandResponse, positiveBookingId,
 import { sendBookingNotification } from '../../../../../lib/notifications/notify.js'
 import { ACCOUNT_BOOKING_SELECT, toAccountBooking } from '../../../../../lib/booking/account-booking-view.js'
 
+function privateJson(payload, init = {}) {
+  return Response.json(payload, {
+    ...init,
+    headers: { 'Cache-Control': 'private, no-store', ...init.headers },
+  })
+}
+
 function localStartsAt(date, time) {
   if (typeof date !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(date)
     || typeof time !== 'string' || !/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(time)) {
@@ -65,7 +72,7 @@ export function createAccountBookingHandlers({
       try {
         const id = await idFrom(context)
         const { user } = await actor()
-        return Response.json({ booking: await readAccountBooking(await serviceClient(), id, user.id) })
+        return privateJson({ booking: await readAccountBooking(await serviceClient(), id, user.id) })
       } catch (error) { return bookingCommandResponse(error) }
     },
     async PATCH(request, context) {

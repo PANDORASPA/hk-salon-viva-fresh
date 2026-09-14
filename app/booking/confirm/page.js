@@ -4,7 +4,11 @@ import { getServiceClient } from '../../../lib/supabase/service.js'
 import { loadConfirmationAppointment } from '../../../lib/booking/confirmation.js'
 import { formatAppointmentDateTime, formatPriceHkd } from '../../../lib/format.js'
 
-export const metadata = { title: '預約確認 | SALON POKE BY VIVA' }
+export const metadata = {
+  title: '預約確認 | SALON POKE BY VIVA',
+  robots: { index: false, follow: false },
+  referrer: 'no-referrer',
+}
 export const dynamic = 'force-dynamic'
 
 export default async function BookingConfirmPage({ searchParams }) {

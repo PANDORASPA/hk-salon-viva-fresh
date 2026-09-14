@@ -10,7 +10,7 @@ import { t } from '../../lib/i18n/dict'
 import { getLocale } from '../../lib/i18n/server'
 import { ACCOUNT_BOOKING_SELECT, toAccountBooking } from '../../lib/booking/account-booking-view.js'
 
-export const metadata = { title: '我的帳戶 | SALON POKE BY VIVA' }
+export const metadata = { title: '我的帳戶 | SALON POKE BY VIVA', robots: { index: false, follow: false } }
 export const dynamic = 'force-dynamic'
 
 export default async function AccountPage() {
