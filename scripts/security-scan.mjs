@@ -131,7 +131,7 @@ function readLiteral(text, index, allowBare, { dynamicVariables = false, dynamic
   const end = text.slice(index).search(/[\s,;#&|]/)
   const value = end === -1 ? text.slice(index) : text.slice(index, index + end)
   if (!value || /[${}()[\]?+]/.test(value) || /^(?:process|import|require)\b/.test(value)) return null
-  if (dynamicCommands && /^(?:get|set|read|invoke|new|remove|write|start|stop|test|import|export)-[a-z]/i.test(value)) return null
+  if (dynamicCommands && /^(?:(?:[a-z0-9_.-]+\\)+)?(?:get|set|read|invoke|new|remove|write|start|stop|test|import|export)-[a-z]/i.test(value)) return null
   return { value, end: index + value.length }
 }
 
@@ -159,9 +159,29 @@ function hasDynamicJavaScriptTail(text, index) {
     }
     break
   }
-  if (cursor >= text.length || ';,}'.includes(text[cursor])) return false
-  if (sawNewline && !'+-*/?.:('.includes(text[cursor])) return false
+  if (cursor >= text.length || ';,})]'.includes(text[cursor])) return false
+  const assertion = /^(as|satisfies)\b/.exec(text.slice(cursor))
+  if (assertion) return hasDynamicTypeAssertionTail(text, cursor + assertion[0].length)
+  if (sawNewline) {
+    const tail = text.slice(cursor)
+    if (/^(?:process|globalThis)\b/.test(tail) || /^[A-Za-z_$][\w$]*\s*\(/.test(tail)) return true
+    // A newline is an automatic-semicolon-insertion boundary unless a known
+    // continuation follows. The explicit dynamic forms above remain blocked.
+    return false
+  }
   return true
+}
+
+function hasDynamicTypeAssertionTail(text, index) {
+  let cursor = index
+  while (cursor < text.length) {
+    const char = text[cursor]
+    if (';,})]'.includes(char)) return false
+    if (/\r|\n/.test(char)) return false
+    if ('+`$('.includes(char)) return true
+    cursor += 1
+  }
+  return false
 }
 
 function statementStart(mask, index) {
@@ -204,13 +224,10 @@ function collectJavaScript(text, language) {
     const nameIndex = token.index
     const before = mask.slice(statementStart(mask, nameIndex), nameIndex)
     const isDeclaration = /\b(?:const|let|var)\b/.test(before)
-    const lineStart = Math.max(mask.lastIndexOf('\n', nameIndex - 1), mask.lastIndexOf(';', nameIndex - 1), mask.lastIndexOf('&', nameIndex - 1), mask.lastIndexOf('|', nameIndex - 1)) + 1
-    const isShell = /\b(?:export|set)\b/i.test(mask.slice(lineStart, nameIndex))
-    const isPowerShell = /\$env:\s*$/i.test(mask.slice(Math.max(0, nameIndex - 6), nameIndex))
     let operator = skipTrivia(text, nameIndex + name.length, { allowNewlines: true, language: 'javascript' })
     let kind = null
     if (mask[operator] === '=') {
-      kind = isPowerShell ? 'shell' : (isDeclaration ? 'declaration' : 'assignment')
+      kind = isDeclaration ? 'declaration' : 'assignment'
       operator = skipTrivia(text, operator + 1, { allowNewlines: true, language: 'javascript' })
     } else if (mask[operator] === ':' && isDeclaration) {
       const equals = typeAnnotationEquals(mask, operator)
@@ -223,8 +240,8 @@ function collectJavaScript(text, language) {
       operator = skipTrivia(text, operator + 1, { allowNewlines: true, language: 'javascript' })
     }
     if (!kind) continue
-    const literal = readLiteral(text, operator, isShell || isPowerShell, { dynamicVariables: isShell || isPowerShell })
-    if (literal && (isShell || isPowerShell || !hasDynamicJavaScriptTail(text, literal.end))) addMatch(name, literal.value, nameIndex)
+    const literal = readLiteral(text, operator, false)
+    if (literal && !hasDynamicJavaScriptTail(text, literal.end)) addMatch(name, literal.value, nameIndex)
   }
   for (const key of quotedKeys) {
     const valueIndex = skipTrivia(text, key.valueIndex, { allowNewlines: true, language: 'javascript' })

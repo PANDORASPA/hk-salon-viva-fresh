@@ -23,23 +23,28 @@ test('security scan finds each literal assignment across JavaScript, shell, Powe
   const stripe = 'STRIPE_SECRET_KEY'
   const webhook = 'STRIPE_WEBHOOK_SECRET'
   const publicKey = 'NEXT_PUBLIC_SERVICE_ROLE_KEY'
-  const source = [
+  const javascript = [
     `const ${key} =`,
     "  'first-literal'",
-    `const ${key} = 'second-literal'; export ${stripe}=third-literal ${webhook}=fourth-literal; $env:${webhook} = \"fifth-literal\"`,
+    `const ${key} = 'second-literal';`,
     `let ${key}: string = 'typed-literal'; ${key}='fifth-literal'`,
     `{ ${publicKey}: 'public-literal' }`,
   ].join('\n')
 
-  assert.deepEqual(scanText('fixture.ts', source), [
+  assert.deepEqual(scanText('fixture.ts', javascript), [
     { line: 1, label: 'Supabase service role key' },
     { line: 3, label: 'Supabase service role key' },
-    { line: 3, label: 'Stripe secret key' },
-    { line: 3, label: 'Stripe webhook secret' },
-    { line: 3, label: 'Stripe webhook secret' },
     { line: 4, label: 'Supabase service role key' },
     { line: 4, label: 'Supabase service role key' },
     { line: 5, label: 'Secret env exposed publicly' },
+  ])
+
+  assert.deepEqual(scanText('fixture.sh', `export ${stripe}=third-literal ${webhook}=fourth-literal`), [
+    { line: 1, label: 'Stripe secret key' },
+    { line: 1, label: 'Stripe webhook secret' },
+  ])
+  assert.deepEqual(scanText('fixture.ps1', `$env:${webhook} = "fifth-literal"`), [
+    { line: 1, label: 'Stripe webhook secret' },
   ])
 })
 
@@ -77,7 +82,6 @@ test('security scan handles trivia-separated, block, comma, and chained-shell as
     `const settings = { ${publicKey}:`,
     '  /* comment between the colon and value */',
     "  'object-literal' }",
-    `set ${key}=shell-one && export ${stripe}=shell-two ${webhook}=shell-three`,
     `const processRead = process.env.${key}`,
     `const ${key} = process.env.INTERNAL_SERVICE_KEY`,
     `const ${stripe} = readSecret()`,
@@ -91,9 +95,11 @@ test('security scan handles trivia-separated, block, comma, and chained-shell as
     { line: 7, label: 'Stripe secret key' },
     { line: 7, label: 'Stripe webhook secret' },
     { line: 8, label: 'Secret env exposed publicly' },
-    { line: 11, label: 'Supabase service role key' },
-    { line: 11, label: 'Stripe secret key' },
-    { line: 11, label: 'Stripe webhook secret' },
+  ])
+  assert.deepEqual(scanText('fixture.sh', `set ${key}=shell-one && export ${stripe}=shell-two ${webhook}=shell-three`), [
+    { line: 1, label: 'Supabase service role key' },
+    { line: 1, label: 'Stripe secret key' },
+    { line: 1, label: 'Stripe webhook secret' },
   ])
 })
 
@@ -198,5 +204,30 @@ test('security scan handles exhaustive bare, expression, dotenv, and PowerShell 
 
   for (const { name, file, source, expected } of cases) {
     assert.deepEqual(scanText(file, source), expected, name)
+  }
+})
+
+test('security scan classifies JavaScript expression tails and module-qualified PowerShell commands', () => {
+  const key = 'SUPABASE_SERVICE_ROLE_KEY'
+  const stripe = 'STRIPE_SECRET_KEY'
+  const cases = [
+    { category: 'function default', file: 'fixture.ts', source: `function configure(${key} = 'default-literal') {}`, expected: [{ line: 1, label: 'Supabase service role key' }] },
+    { category: 'call argument', file: 'fixture.ts', source: `configure(${key} = 'argument-literal')`, expected: [{ line: 1, label: 'Supabase service role key' }] },
+    { category: 'array assignment', file: 'fixture.ts', source: `[${key} = 'array-literal']`, expected: [{ line: 1, label: 'Supabase service role key' }] },
+    { category: 'TypeScript as assertion', file: 'fixture.ts', source: `const ${key} = 'asserted-literal' as const`, expected: [{ line: 1, label: 'Supabase service role key' }] },
+    { category: 'TypeScript satisfies assertion', file: 'fixture.ts', source: `const ${key} = 'satisfied-literal' satisfies string`, expected: [{ line: 1, label: 'Supabase service role key' }] },
+    { category: 'JavaScript export is not shell syntax', file: 'fixture.ts', source: `export ${stripe}=bare-shell-looking-value`, expected: [] },
+    { category: 'concatenation', file: 'fixture.ts', source: `const ${key} = 'literal' + process.env.INTERNAL_SECRET`, expected: [] },
+    { category: 'template interpolation', file: 'fixture.ts', source: `const ${key} = \`literal-${'${'}process.env.INTERNAL_SECRET}\``, expected: [] },
+    { category: 'property access', file: 'fixture.ts', source: `const ${key} = 'literal'.trim()`, expected: [] },
+    { category: 'index access', file: 'fixture.ts', source: `const ${key} = 'literal'[0]`, expected: [] },
+    { category: 'call access', file: 'fixture.ts', source: `const ${key} = 'literal'()`, expected: [] },
+    { category: 'environment identifier across newline', file: 'fixture.ts', source: `const ${key} = 'literal'\nprocess.env.INTERNAL_SECRET`, expected: [] },
+    { category: 'function identifier across newline', file: 'fixture.ts', source: `const ${key} = 'literal'\ngetSecret()`, expected: [] },
+    { category: 'module-qualified Get-Secret command', file: 'fixture.ps1', source: `$env:${stripe} = Microsoft.PowerShell.SecretManagement\\Get-Secret`, expected: [] },
+  ]
+
+  for (const { category, file, source, expected } of cases) {
+    assert.deepEqual(scanText(file, source), expected, category)
   }
 })
