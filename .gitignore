@@ -46,3 +46,6 @@ next-env.d.ts
 LIVE_SMOKE_REPORT_*.json
 RELEASE_GATE_REPORT_*.json
 /docs/smoke/*.json
+
+# task execution evidence (kept locally; never committed)
+/task-9-report.md
