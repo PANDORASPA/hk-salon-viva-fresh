@@ -25,14 +25,14 @@ export default async function PackagesSuccessPage({ searchParams }) {
       <div className="salon">
         <Nav locale={locale} />
         <main className="salon-wrap salon-section">
-          <h1 className="salon-section-title" style={{ textAlign: 'left', marginBottom: 8, fontSize: 36 }}>
+          <h1 className="salon-section-title present-82d03763" >
             {t('success.errorTitle', locale)}
           </h1>
-          <p style={{ color: '#706961', marginBottom: 24 }}>
+          <p className="present-c77315de">
             {locale === 'en' ? 'Please try again: ' : '請重新嘗試：'}
             <Link href="/packages">{t('success.retry', locale)}</Link>
           </p>
-          <p style={{ color: '#c0392b', fontSize: 13 }}>
+          <p className="present-ec95e86b">
             {t('success.errorCode', locale)}: {errorCode}
           </p>
         </main>
@@ -45,19 +45,19 @@ export default async function PackagesSuccessPage({ searchParams }) {
     <div className="salon">
       <Nav locale={locale} />
       <main className="salon-wrap salon-section">
-        <h1 className="salon-section-title" style={{ textAlign: 'left', marginBottom: 8, fontSize: 36, color: '#27ae60' }}>
+        <h1 className="salon-section-title present-35a03eeb" >
           ✓ {t('success.title', locale)}
         </h1>
-        <p style={{ color: '#706961', marginBottom: 24 }}>
+        <p className="present-c77315de">
           感謝你的訂單。我們正等待付款平台的已驗證通知；套票會在確認後發出。
         </p>
 
         {sessionId && (
-          <div className="admin-list" style={{ marginBottom: 24 }}>
+          <div className="admin-list present-fec3619e" >
             <article>
               <div>
                 <strong>{t('success.transaction', locale)}</strong>
-                <p style={{ fontFamily: 'monospace', fontSize: 13 }}>{sessionId}</p>
+                <p className="present-83d5167f">{sessionId}</p>
               </div>
               <span className="status pending">付款確認中</span>
             </article>
@@ -65,15 +65,15 @@ export default async function PackagesSuccessPage({ searchParams }) {
         )}
 
 
-        <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 32 }}>
+        <div className="present-4aef36d8">
           <Link className="salon-button" href="/booking">{t('home.cta.book', locale)}</Link>
           {contact.whatsappHref ? <a className="salon-button salon-button-secondary" href={contact.whatsappHref} target="_blank" rel="noopener">WhatsApp {t('home.cta.whatsapp', locale)}</a> : null}
           <Link className="salon-button salon-button-secondary" href="/account">{t('nav.account', locale)}</Link>
         </div>
 
-        <div style={{ marginTop: 40, padding: 24, background: '#f7f3ec', borderRadius: 8 }}>
-          <h3 style={{ margin: '0 0 12px', fontFamily: 'Georgia,serif' }}>{t('confirm.tips.0', locale).slice(0, -1)}</h3>
-          <ul style={{ paddingLeft: 20, color: '#706961', lineHeight: 1.8 }}>
+        <div className="present-60755ad6">
+          <h3 className="present-e68a0e44">{t('confirm.tips.0', locale).slice(0, -1)}</h3>
+          <ul className="present-b4e92141">
             <li>{t('success.tips.0', locale)}</li>
             <li>{t('success.tips.1', locale)}</li>
             <li>{t('success.tips.2', locale)}</li>

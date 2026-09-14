@@ -1,5 +1,8 @@
 import './globals.css'
-import { cookies } from 'next/headers'
+import './presentation.css'
+import { cookies, headers } from 'next/headers'
+import { connection } from 'next/server'
+import { DocumentNonceProvider } from './components/DocumentNonce'
 import { SUPPORTED_LOCALES, DEFAULT_LOCALE } from '../lib/i18n/dict'
 import { publicSiteUrl } from '../lib/content/public-contact.js'
 
@@ -37,6 +40,9 @@ export const robots = {
 }
 
 export default async function RootLayout({ children }) {
+  // Nonce-bearing HTML must be rendered for this request, never an ISR shell.
+  await connection()
+  const nonce = (await headers()).get('x-nonce')
   // Read the lang cookie so the <html lang> attribute matches the
   // active locale. Falls back to DEFAULT_LOCALE if missing/invalid.
   let lang = DEFAULT_LOCALE
@@ -54,7 +60,7 @@ export default async function RootLayout({ children }) {
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400&family=Inter:wght@400;500&display=swap" rel="stylesheet" />
       </head>
-      <body>{children}</body>
+      <body><DocumentNonceProvider nonce={nonce}>{children}</DocumentNonceProvider></body>
     </html>
   )
 }

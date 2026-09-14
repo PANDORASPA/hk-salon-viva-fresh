@@ -8,30 +8,30 @@ export const dynamic = 'force-dynamic'
 
 export default function SigninPage() {
   return (
-    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--cream)', padding: 24 }}>
-      <div style={{ width: '100%', maxWidth: 420 }}>
-        <h1 style={{ fontWeight: 600, fontSize: 32, lineHeight: 1.1, fontFamily: 'Georgia,serif', textAlign: 'center', marginBottom: 8 }}>
+    <div className="present-41f27ca6">
+      <div className="present-3d5f0783">
+        <h1 className="present-7d896692">
           顧客登入
         </h1>
-        <p style={{ textAlign: 'center', color: '#706961', marginBottom: 24 }}>
+        <p className="present-e9b345fd">
           登入後可查看預約、套票餘額同改期。
         </p>
-        <div style={{ background: '#fff', border: '1px solid var(--border)', borderRadius: 8, padding: 28 }}>
+        <div className="present-73c97001">
           <Suspense fallback={<p>載入中…</p>}>
             <AuthForm mode="signin" />
           </Suspense>
-          <div style={{ marginTop: 16, textAlign: 'center', fontSize: 14, color: '#706961' }}>
-            <Link href="/forgot" style={{ color: '#a98152' }}>忘記密碼？</Link>
+          <div className="present-52eba926">
+            <Link href="/forgot" className="present-154eba31">忘記密碼？</Link>
           </div>
-          <div style={{ marginTop: 12, textAlign: 'center', fontSize: 14, color: '#706961' }}>
-            仲未係會員？ <Link href="/signup" style={{ color: '#a98152' }}>建立帳戶</Link>
+          <div className="present-56058790">
+            仲未係會員？ <Link href="/signup" className="present-154eba31">建立帳戶</Link>
           </div>
         </div>
-        <p style={{ textAlign: 'center', color: '#928a81', fontSize: 13, marginTop: 24 }}>
-          唔想註冊？<Link href="/booking" style={{ color: '#a98152' }}>直接填表預約</Link> 即可，無需登入。
+        <p className="present-e3703928">
+          唔想註冊？<Link href="/booking" className="present-154eba31">直接填表預約</Link> 即可，無需登入。
         </p>
-        <p style={{ textAlign: 'center', marginTop: 12 }}>
-          <Link href="/admin/login" style={{ color: '#706961', fontSize: 13 }}>管理員入口</Link>
+        <p className="present-f4d857fe">
+          <Link href="/admin/login" className="present-9200fedf">管理員入口</Link>
         </p>
         <Suspense fallback={null}>
           <SignInHelp />

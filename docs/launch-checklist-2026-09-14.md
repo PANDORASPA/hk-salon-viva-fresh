@@ -20,6 +20,8 @@ Do not deploy or open booking if any item below is incomplete or failed.
 - [ ] Current committed code has a passing `npm run test:unit` result.
 - [ ] Current committed code has a passing `npm run security:scan` result.
 - [ ] Current committed code has a passing `npm run build` result.
+- [ ] Run `npm run test:production-csp` after that build. Require fresh document nonces, matching bootstrap/scripts, a safe native POST fallback, soft-navigation styles and a Chromium hydration check (an unavailable browser skip is not browser proof).
+- [ ] Confirm preview/production HTML has one enforced nonce CSP with no `unsafe-inline`, is private/no-store, and has no CDN/ISR/PPR document caching override. Static assets should remain independently cacheable.
 - [ ] If live Resend is required, install its optional SDK and pass an authorised delivery smoke; it is currently absent.
 - [ ] Stripe remains hard-disabled. Installing its SDK or configuring keys does not enable payment. Do not launch online package sales until canonical ownership-bound `customer_packages` fulfillment, verified webhook events, idempotency/reconciliation and payment/refund smokes are implemented and reviewed.
 - [ ] `git diff --check` is clean and no tracked secret or local E2E runtime file exists.

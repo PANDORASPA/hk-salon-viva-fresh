@@ -87,7 +87,7 @@ export default async function HomePage() {
             )
           })}
         </div>
-        <div style={{ textAlign: 'center', marginTop: 32 }}>
+        <div className="present-9c0b1481">
           <Link className="salon-button" href="/services">{t('home.services.viewAll', locale)}</Link>
         </div>
       </section>
@@ -109,7 +109,7 @@ export default async function HomePage() {
                 </li>
               ))}
             </ul>
-            <div style={{ marginTop: 24 }}>
+            <div className="present-321d1ea5">
               {waLink ? <a className="salon-button" href={waLink} target="_blank" rel="noopener">{t('home.treatment.cta', locale)}</a> : null}
             </div>
           </div>

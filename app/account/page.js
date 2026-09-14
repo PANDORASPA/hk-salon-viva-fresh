@@ -38,13 +38,13 @@ export default async function AccountPage() {
     <div className="salon">
       <Nav locale={locale} />
       <main className="salon-wrap salon-section">
-        <h1 className="salon-section-title" style={{ textAlign: 'left', marginBottom: 8, fontSize: 36 }}>
+        <h1 className="salon-section-title present-82d03763" >
           {t('account.title', locale)}
         </h1>
-        <p style={{ color: '#706961', marginBottom: 32 }}>
+        <p className="present-33a284d0">
           {t('account.signedIn', locale)}：{customer.name || user.email}
         </p>
-        <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 40 }}>
+        <div className="present-e7063cce">
           <Link className="salon-button" href="/booking">{t('account.cta.book', locale)}</Link>
           <Link className="admin-action" href="/account/profile">
             {locale === 'en' ? 'Edit profile' : '編輯個人資料'}
@@ -52,11 +52,11 @@ export default async function AccountPage() {
           <SignOutButton />
         </div>
 
-        <h2 className="salon-section-title" style={{ textAlign: 'left', marginBottom: 20, fontSize: 24 }}>
+        <h2 className="salon-section-title present-1892535d" >
           {t('account.packages', locale)}
         </h2>
         {customerPackages?.length ? (
-          <div className="admin-list" style={{ marginBottom: 40 }}>
+          <div className="admin-list present-6feba752" >
             {customerPackages.map(cp => {
               const now = Date.now()
               const expired = new Date(cp.expires_at).getTime() <= now
@@ -76,11 +76,7 @@ export default async function AccountPage() {
                     </p>
                   </div>
                   <span
-                    className="status"
-                    style={{
-                      background: status === 'exhausted' || status === 'expired' ? '#fee2e2' : status === 'active' ? '#d1fae5' : '#f3f4f6',
-                      color: status === 'exhausted' || status === 'expired' ? '#991b1b' : status === 'active' ? '#065f46' : '#374151',
-                    }}
+                    className={`status ${status === 'exhausted' || status === 'expired' ? 'cancelled' : status === 'active' ? 'completed' : 'no_show'}`}
                   >
                     {t(`account.package.${status}`, locale)}
                   </span>
@@ -89,17 +85,17 @@ export default async function AccountPage() {
             })}
           </div>
         ) : (
-          <p style={{ color: '#928a81', marginBottom: 40 }}>{t('account.empty.packages', locale)}</p>
+          <p className="present-a0160dd3">{t('account.empty.packages', locale)}</p>
         )}
 
-        <h2 id="bookings" className="salon-section-title" style={{ textAlign: 'left', marginBottom: 20, fontSize: 24 }}>
+        <h2 id="bookings" className="salon-section-title present-1892535d" >
           {t('account.bookings', locale)}
         </h2>
         <BookingsClient initialBookings={(appointments || []).map(toAccountBooking)} />
 
-        {contact.whatsappHref ? <div style={{ marginTop: 40, padding: 24, background: '#f7f3ec', borderRadius: 8 }}>
-          <h3 style={{ margin: '0 0 12px', fontFamily: 'Georgia,serif' }}>{t('account.contact.title', locale)}</h3>
-          <p style={{ color: '#706961', marginBottom: 16 }}>{t('account.contact.body', locale)}</p>
+        {contact.whatsappHref ? <div className="present-60755ad6">
+          <h3 className="present-e68a0e44">{t('account.contact.title', locale)}</h3>
+          <p className="present-0c4c6aff">{t('account.contact.body', locale)}</p>
           <a className="salon-button" href={contact.whatsappHref} target="_blank" rel="noopener">
             {t('account.contact.cta', locale)}
           </a>

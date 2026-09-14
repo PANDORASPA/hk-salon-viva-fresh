@@ -6,7 +6,7 @@ This runbook applies to the current staff-aware booking platform. It is intentio
 
 1. Confirm a release owner, an authorised migration operator, a rollback owner, and the launch window.
 2. Confirm the target origin, its separate Supabase project, and a fresh recoverable database backup. Record only the backup job/timestamp, never credentials.
-3. Run the local gate: `npm run test:unit`, `npm run security:scan`, `npm run build`, and `git diff --check`.
+3. Run the local gate: `npm run test:unit`, `npm run security:scan`, `npm run build`, `npm run test:production-csp` (after the build), and `git diff --check`.
 4. Run the browser suite only after provisioning the isolated E2E environment described below. A credential preflight refusal prevents mutations but is still a release blocker.
 5. Complete the current [launch checklist](launch-checklist-2026-09-14.md). Preview and production require their own evidence.
 
@@ -126,3 +126,15 @@ npm run cleanup:e2e
 ```
 
 Never point these commands at a preview or production target.
+
+## Document CSP and no-JavaScript authentication
+
+The per-request proxy generates a cryptographically random 192-bit nonce and forwards both `Content-Security-Policy` and `x-nonce` to the App Router. The response carries the same CSP. Incoming caller-supplied nonce/CSP headers are overwritten, including after Auth cookie refresh; auth redirects retain the policy and refreshed cookies. Do not reintroduce a static CSP in `next.config.js`.
+
+All HTML is request-rendered and private/no-store. Do not enable a cached HTML/ISR/PPR shell or an edge/CDN cache override: cached documents can mismatch or reuse nonces. Next static chunks, image optimization, metadata and public asset paths remain outside this document policy. `/gallery` is still a document; only `/gallery/` asset paths are excluded. API routes keep their own authentication/guards.
+
+Production has no `unsafe-inline` or `unsafe-eval`. Existing style attributes were moved to equivalent external CSS. Validated package colour rules use a nonce-aware style component that retains the active document nonce across soft navigation and refresh; a new document gets a new nonce. New inline scripts/styles must use that nonce flow, never a fixed token. Development alone permits React debugging eval/style injection; `upgrade-insecure-requests` is applied to HTTPS production documents, not HTTP loopback.
+
+Sign-in, signup, administrator sign-in, reset and recovery forms declare a same-origin POST fallback. Without working JavaScript, `/api/auth/unavailable` returns a controlled 503 HTML response without reading, logging, authenticating, echoing or storing the request body. It never accepts GET authentication. Do not add request-body logging at hosting/proxy layers.
+
+After a build, `npm run test:production-csp` starts an isolated production server on an ephemeral loopback port, with provider environment values cleared. HTML tests verify matching script/style nonces, fresh requests, the POST refusal and static/API behavior. If Chrome/Chromium is already installed, the browser test blocks all non-loopback page requests and proves hydration, soft navigation, parser-enforced rejection of an unnonced script, and the native no-JavaScript POST (invented nonsecret fixtures only). It never downloads a browser or supplies real credentials. A missing browser is reported as skipped, not browser evidence. The deliberately unconfigured home page returns its existing 500 error boundary; this check verifies its CSP, not successful hosted home data. Provider-backed E2E and preview/production evidence remain separate launch gates.

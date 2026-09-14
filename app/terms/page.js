@@ -13,15 +13,15 @@ export default function TermsPage() {
   return (
     <div className="salon">
       <Nav locale={locale} />
-      <main className="salon-wrap salon-section" style={{ maxWidth: 720 }}>
-        <h1 style={{ font: '600 36px/1.1 Georgia,serif', marginBottom: 24 }}>
+      <main className="salon-wrap salon-section present-f5551d8b" >
+        <h1 className="present-d649b676">
           {t('terms.title', locale)}
         </h1>
-        <p style={{ color: '#706961', marginBottom: 24, fontSize: 14 }}>{t('terms.updated', locale)}</p>
+        <p className="present-140362e7">{t('terms.updated', locale)}</p>
         {sections.map((s) => (
-          <div key={s} style={{ marginBottom: 24 }}>
-            <h2 style={{ font: '600 18px/1.2 Georgia,serif', marginBottom: 8 }}>{t(`terms.sections.${s}.title`, locale)}</h2>
-            <p style={{ color: '#4a4541', lineHeight: 1.7 }}>{t(`terms.sections.${s}.body`, locale)}</p>
+          <div key={s} className="present-fec3619e">
+            <h2 className="present-3cf419c7">{t(`terms.sections.${s}.title`, locale)}</h2>
+            <p className="present-ed996511">{t(`terms.sections.${s}.body`, locale)}</p>
           </div>
         ))}
       </main>

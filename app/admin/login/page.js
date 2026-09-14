@@ -8,24 +8,24 @@ export const dynamic = 'force-dynamic'
 
 export default function AdminLoginPage() {
   return (
-    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--cream)', padding: 24 }}>
-      <div style={{ width: '100%', maxWidth: 420 }}>
-        <p style={{ textAlign: 'center', color: '#a98152', fontSize: 12, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 8 }}>
+    <div className="present-41f27ca6">
+      <div className="present-3d5f0783">
+        <p className="present-ad5e699d">
           SALON POKE BY VIVA
         </p>
-        <h1 style={{ fontWeight: 600, fontSize: 32, lineHeight: 1.1, fontFamily: 'Georgia,serif', textAlign: 'center', marginBottom: 8 }}>
+        <h1 className="present-7d896692">
           管理員登入
         </h1>
-        <p style={{ textAlign: 'center', color: '#706961', marginBottom: 24 }}>
+        <p className="present-e9b345fd">
           只有 <code>admin_users</code> 內被標記為 <code>is_active</code> 嘅帳戶可以進入。
         </p>
-        <div style={{ background: '#fff', border: '1px solid var(--border)', borderRadius: 8, padding: 28 }}>
+        <div className="present-73c97001">
           <Suspense fallback={<p>載入中…</p>}>
             <AuthForm mode="signin" admin />
           </Suspense>
         </div>
-        <p style={{ textAlign: 'center', marginTop: 24 }}>
-          <Link href="/" style={{ color: '#706961', fontSize: 13 }}>← 返回主頁</Link>
+        <p className="present-729fe37b">
+          <Link href="/" className="present-9200fedf">← 返回主頁</Link>
         </p>
         <Suspense fallback={null}>
           <SignInHelp />

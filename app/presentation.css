@@ -1,0 +1,122 @@
+/* Presentation formerly expressed as static React style attributes.
+ * External CSS preserves these views under the production nonce CSP.
+ * The stable names deduplicate equivalent declarations; :root retains
+ * the intended precedence over base component rules without !important. */
+:root .present-4f80823c { font: 600 42px/1.1 Georgia,serif; margin-bottom: 24px; }
+:root .present-4ba21e2d { font-size: 18px; color: #4a4541; max-width: 680px; margin-bottom: 32px; }
+:root .present-69cf5f48 { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 24px; margin-bottom: 40px; }
+:root .present-339bfcea { padding: 24px; background: #f7f3ec; border-radius: 8px; border-top: 3px solid #a98152; }
+:root .present-9d645636 { margin: 0 0 8px; font-family: Georgia,serif; }
+:root .present-64fbd8bc { color: #706961; margin: 0; }
+:root .present-9bf61411 { padding: 32px; background: #f7f3ec; border-radius: 8px; }
+:root .present-30fca7a1 { font-family: Georgia,serif; margin: 0 0 16px; }
+:root .present-a3136548 { color: #4a4541; margin-bottom: 16px; }
+:root .present-a0160dd3 { color: #928a81; margin-bottom: 40px; }
+:root .present-4933c088 { margin-bottom: 16px; }
+:root .present-37320b7c { font-size: 12px; color: #706961; margin-top: 4px; }
+:root .present-2b8fc28b { display: flex; flex-direction: column; gap: 6px; align-items: flex-end; }
+:root .present-3633e433 { display: flex; gap: 6px; }
+:root .present-a15c82f6 { color: #c0392b; }
+:root .present-82d03763 { text-align: left; margin-bottom: 8px; font-size: 36px; }
+:root .present-33a284d0 { color: #706961; margin-bottom: 32px; }
+:root .present-e7063cce { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 40px; }
+:root .present-1892535d { text-align: left; margin-bottom: 20px; font-size: 24px; }
+:root .present-6feba752 { margin-bottom: 40px; }
+:root .present-60755ad6 { margin-top: 40px; padding: 24px; background: #f7f3ec; border-radius: 8px; }
+:root .present-e68a0e44 { margin: 0 0 12px; font-family: Georgia,serif; }
+:root .present-0c4c6aff { color: #706961; margin-bottom: 16px; }
+:root .present-110bc484 { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin-bottom: 24px; }
+:root .present-609d08b8 { text-align: left; margin-bottom: 0; font-size: 36px; }
+:root .present-78539e49 { color: #a98152; font-size: 14px; }
+:root .present-5951a95a { background: #fff; border: 1px solid var(--border); border-radius: 8px; padding: 28px; max-width: 480px; }
+:root .present-41f27ca6 { min-height: 100vh; display: flex; align-items: center; justify-content: center; background: var(--cream); padding: 24px; }
+:root .present-3d5f0783 { width: 100%; max-width: 420px; }
+:root .present-ad5e699d { text-align: center; color: #a98152; font-size: 12px; letter-spacing: 0.12em; text-transform: uppercase; margin-bottom: 8px; }
+:root .present-7d896692 { font-weight: 600; font-size: 32px; line-height: 1.1; font-family: Georgia,serif; text-align: center; margin-bottom: 8px; }
+:root .present-e9b345fd { text-align: center; color: #706961; margin-bottom: 24px; }
+:root .present-73c97001 { background: #fff; border: 1px solid var(--border); border-radius: 8px; padding: 28px; }
+:root .present-729fe37b { text-align: center; margin-top: 24px; }
+:root .present-9200fedf { color: #706961; font-size: 13px; }
+:root .present-741dd0c5 { color: #706961; }
+:root .present-1d3782f8 { color: #27ae60; margin-bottom: 24px; }
+:root .present-e8a8a9c0 { margin-bottom: 32px; }
+:root .present-bee85b65 { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 24px; }
+:root .present-b4e92141 { padding-left: 20px; color: #706961; line-height: 1.8; }
+:root .present-06851f5c { margin-bottom: 8px; text-align: left; }
+:root .present-66a96bd6 { color: #706961; margin-bottom: 40px; }
+:root .present-3fc14f06 { margin-top: 16px; padding-top: 16px; border-top: 1px dashed #ded5c8; }
+:root .present-745bb17c { margin: 0 0 8px; color: #c0392b; }
+:root .present-a5afbd00 { display: flex; gap: 8px; flex-wrap: wrap; }
+:root .present-16d55255 { color: #c0392b; border-color: #c0392b; }
+:root .present-e8fd0866 { color: #c0392b; font-size: 12px; margin-top: 8px; }
+:root .present-ceaa762b { color: #27ae60; font-size: 12px; margin-top: 8px; }
+:root .present-e3bae102 { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
+:root .present-126244f1 { flex: 1; }
+:root .present-e6ef5e8b { min-width: 100px; }
+:root .present-3eff5205 { font: 600 42px/1.1 Georgia,serif; margin-bottom: 32px; }
+:root .present-a1db41c0 { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 24px; }
+:root .present-02ec55a0 { padding: 28px; background: #f7f3ec; border-radius: 8px; text-align: center; }
+:root .present-693ad9d2 { display: flex; justify-content: center; margin-bottom: 12px; color: var(--gold); }
+:root .present-933a7750 { color: #706961; margin-bottom: 12px; }
+:root .present-ed952d49 { color: #706961; margin-top: 32px; }
+:root .present-cfb8c16f { margin-top: 40px; text-align: center; }
+:root .present-74b16870 { min-height: 60vh; display: flex; align-items: center; justify-content: center; padding: 24px; }
+:root .present-7e8614f4 { max-width: 480px; text-align: center; }
+:root .present-f1fde8e1 { color: #a98152; letter-spacing: 0.16em; text-transform: uppercase; font-size: 12px; margin-bottom: 12px; }
+:root .present-3e864c57 { font-family: Cormorant Garamond,Georgia,serif; font-size: 28px; font-weight: 600; margin: 0 0 12px; color: #2c2826; }
+:root .present-c77315de { color: #706961; margin-bottom: 24px; }
+:root .present-154eba31 { color: #a98152; }
+:root .present-66363ce8 { padding: 10px 20px; background: #a98152; color: #fff; border: none; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; }
+:root .present-fb5ec070 { text-align: center; }
+:root .present-c804002a { margin-bottom: 12px; }
+:root .present-2ce7c8b9 { display: block; margin-bottom: 6px; font-size: 14px; font-weight: 500; }
+:root .present-1fd96f2f { width: 100%; padding: 10px 14px; border: 1.5px solid var(--border); border-radius: 8px; font-size: 15px; }
+:root .present-cd00d17d { width: 100%; text-align: center; }
+:root .present-f018ab06 { min-height: 70vh; display: flex; align-items: center; justify-content: center; padding: 24px; }
+:root .present-54753b1b { font: 600 42px/1.1 Georgia,serif; margin-bottom: 8px; }
+:root .present-c01a1ea6 { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; }
+:root .present-a8a231e1 { background: linear-gradient(135deg, #ede6d9 0%, #d9cdb6 100%); border-radius: 8px; height: 240px; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 8px; color: #928a81; }
+:root .present-89e04330 { color: #928a81; font-size: 14px; margin: 0; }
+:root .present-073c1bfc { margin: 0; padding: 0; font-family: -apple-system,BlinkMacSystemFont,sans-serif; background: #f7f3ec; color: #2c2826; }
+:root .present-9a0143e8 { max-width: 600px; margin: 80px auto; padding: 0 24px; text-align: center; }
+:root .present-3c28d7bd { font-family: Cormorant Garamond,Georgia,serif; font-size: 32px; font-weight: 600; margin: 0 0 16px; }
+:root .present-8433b878 { color: #706961; margin-bottom: 8px; }
+:root .present-43d1b9f6 { color: #928a81; font-size: 12px; font-family: monospace; padding: 12px; background: #fff; border: 1px solid #ded5c8; border-radius: 8px; margin: 16px 0 24px; text-align: left; overflow: auto; }
+:root .present-71142514 { padding: 12px 24px; background: #a98152; color: #fff; border: none; border-radius: 8px; font-size: 15px; font-weight: 600; cursor: pointer; }
+:root .present-2c4feb5c { padding: 32px; background: #f7f3ec; border-radius: 8px; margin-bottom: 24px; display: flex; align-items: center; gap: 16px; }
+:root .present-07e3cdd3 { color: var(--gold); }
+:root .present-c3fd0dc1 { font-size: 18px; margin: 0 0 4px; }
+:root .present-8173c779 { margin-top: 32px; text-align: center; }
+:root .present-29b1ec23 { text-align: center; padding-top: 80px; padding-bottom: 80px; }
+:root .present-d378edc2 { margin-bottom: 12px; font-size: 36px; }
+:root .present-db270d8a { display: inline-flex; gap: 12px; flex-wrap: wrap; justify-content: center; }
+:root .present-43941296 { text-align: left; margin-bottom: 8px; font-size: 42px; }
+:root .present-81f004d1 { margin-bottom: 24px; font-size: 13px; }
+:root .present-fec3619e { margin-bottom: 24px; }
+:root .present-62f09da3 { color: #928a81; }
+:root .present-ff340128 { grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); }
+:root .present-6e7202d3 { margin-bottom: 4px; }
+:root .present-eccca7ae { color: #706961; font-size: 14px; margin-bottom: 12px; flex: 1; }
+:root .present-61acfde2 { font-size: 13px; color: #928a81; margin-bottom: 8px; }
+:root .present-82e23340 { font-size: 28px; margin-bottom: 12px; }
+:root .present-ec95e86b { color: #c0392b; font-size: 13px; }
+:root .present-35a03eeb { text-align: left; margin-bottom: 8px; font-size: 36px; color: #27ae60; }
+:root .present-83d5167f { font-family: monospace; font-size: 13px; }
+:root .present-4aef36d8 { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 32px; }
+:root .present-9c0b1481 { text-align: center; margin-top: 32px; }
+:root .present-321d1ea5 { margin-top: 24px; }
+:root .present-f5551d8b { max-width: 720px; }
+:root .present-d649b676 { font: 600 36px/1.1 Georgia,serif; margin-bottom: 24px; }
+:root .present-140362e7 { color: #706961; margin-bottom: 24px; font-size: 14px; }
+:root .present-4fb54260 { color: #4a4541; line-height: 1.7; margin-bottom: 20px; }
+:root .present-3cf419c7 { font: 600 18px/1.2 Georgia,serif; margin-bottom: 8px; }
+:root .present-ed996511 { color: #4a4541; line-height: 1.7; }
+:root .present-8799bec9 { font-size: 13px; color: #706961; margin-bottom: 12px; }
+:root .present-460e584e { text-align: center; margin-top: 40px; }
+:root .present-52eba926 { margin-top: 16px; text-align: center; font-size: 14px; color: #706961; }
+:root .present-56058790 { margin-top: 12px; text-align: center; font-size: 14px; color: #706961; }
+:root .present-e3703928 { text-align: center; color: #928a81; font-size: 13px; margin-top: 24px; }
+:root .present-f4d857fe { text-align: center; margin-top: 12px; }
+:root .present-6768c76f { margin-top: 16px; text-align: center; }
+:root .present-2c5de9bc { display: block; margin-top: 4px; }
+.package-card { border-left: 6px solid #a98152; display: flex; flex-direction: column; }

@@ -26,10 +26,10 @@ export default async function BookingPage() {
     <div className="salon">
       <Nav locale={locale} />
       <main className="salon-wrap salon-section">
-        <h1 className="salon-section-title" style={{ marginBottom: 8, textAlign: 'left' }}>
+        <h1 className="salon-section-title present-06851f5c" >
           {t('booking.title', locale)}
         </h1>
-        <p style={{ color: '#706961', marginBottom: 40 }}>
+        <p className="present-66a96bd6">
           {t('booking.subtitle', locale)}
         </p>
         <BookingWizard services={svcList} authenticated={Boolean(user && !user.is_anonymous)} />

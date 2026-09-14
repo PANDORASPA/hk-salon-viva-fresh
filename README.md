@@ -14,9 +14,12 @@ npm run dev
 npm run test:unit
 npm run security:scan
 npm run build
+npm run test:production-csp
 ```
 
 完整 browser acceptance suite 只可對隔離的 E2E 環境執行，做法見 [e2e/README.md](e2e/README.md)。它會拒絕 production、preview、未標記資料庫及缺少測試憑證的設定。
+
+`test:production-csp` 另行啟動已建置的本機 loopback 網站，清空服務憑證，檢查 nonce、登入 hydration、無 JavaScript 的安全 POST 及靜態檔案快取。它只使用已安裝的 Chromium，阻擋瀏覽器外部請求，不會下載瀏覽器、建立帳戶或連接供應商；不取代有憑證的 E2E／託管環境驗證。
 
 ## 環境變數
 

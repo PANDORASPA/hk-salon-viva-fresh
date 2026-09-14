@@ -15,15 +15,15 @@ export default function GalleryPage() {
     <div className="salon">
       <Nav locale={locale} />
       <main className="salon-wrap salon-section">
-        <h1 style={{ font: '600 42px/1.1 Georgia,serif', marginBottom: 8 }}>
+        <h1 className="present-54753b1b">
           {t('gallery.title', locale)}
         </h1>
-        <p style={{ color: '#706961', marginBottom: 40 }}>{t('gallery.subtitle', locale)}</p>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 16 }}>
+        <p className="present-66a96bd6">{t('gallery.subtitle', locale)}</p>
+        <div className="present-c01a1ea6">
           {Array.from({ length: 8 }).map((_, i) => (
-            <div key={i} style={{ background: 'linear-gradient(135deg, #ede6d9 0%, #d9cdb6 100%)', borderRadius: 8, height: 240, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 8, color: '#928a81' }}>
+            <div key={i} className="present-a8a231e1">
               <BrandIcon name="leaf" size={28} className="" />
-              <p style={{ color: '#928a81', fontSize: 14, margin: 0 }}>
+              <p className="present-89e04330">
                 {t('gallery.placeholder', locale).replace('{n}', String(i + 1))}
               </p>
             </div>

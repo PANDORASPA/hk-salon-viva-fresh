@@ -54,7 +54,18 @@ test('SignInHelp shows the right message for each error code', async () => {
 })
 
 test('proxy.js still guards /account and /admin', async () => {
-  const src = await read('proxy.js')
-  assert.match(src, /\/account/)
-  assert.match(src, /\/admin/)
+  const { NextRequest, NextResponse } = await import('./helpers/next-response.mjs')
+  const { createCspProxy } = await import('../lib/security/request-policy.js')
+  const proxy = createCspProxy({
+    NextResponse,
+    env: { NEXT_PUBLIC_SUPABASE_URL: 'https://example.supabase.co', NEXT_PUBLIC_SUPABASE_ANON_KEY: 'nonsecret-fixture' },
+    createServerClient: () => ({ auth: { getUser: async () => ({ data: { user: null } }) } }),
+  })
+  for (const [path, destination] of [['/account', '/signin'], ['/admin', '/admin/login']]) {
+    const result = await proxy(new NextRequest('https://salon.example' + path))
+    assert.equal(result.status, 307)
+    const location = new URL(result.headers.get('location'))
+    assert.equal(location.pathname, destination)
+    assert.equal(location.searchParams.get('redirectTo'), path)
+  }
 })

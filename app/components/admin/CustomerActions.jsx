@@ -77,9 +77,9 @@ export default function CustomerActions({ customerId, customerName }) {
   }
 
   return (
-    <div style={{ marginTop: 16, paddingTop: 16, borderTop: '1px dashed #ded5c8' }}>
-      <h4 style={{ margin: '0 0 8px', color: '#c0392b' }}>資料管理（GDPR）</h4>
-      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+    <div className="present-3fc14f06">
+      <h4 className="present-745bb17c">資料管理（GDPR）</h4>
+      <div className="present-a5afbd00">
         <button
           type="button"
           className="admin-action"
@@ -90,21 +90,21 @@ export default function CustomerActions({ customerId, customerName }) {
         </button>
         <button
           type="button"
-          className="admin-action"
+          className="admin-action present-16d55255"
           disabled={busy}
           onClick={gdprDelete}
-          style={{ color: '#c0392b', borderColor: '#c0392b' }}
+
         >
           🗑 GDPR 刪除
         </button>
       </div>
       {error && (
-        <p role="alert" style={{ color: '#c0392b', fontSize: 12, marginTop: 8 }}>
+        <p role="alert" className="present-e8fd0866">
           ⚠️ {error}
         </p>
       )}
       {info && (
-        <p role="status" style={{ color: '#27ae60', fontSize: 12, marginTop: 8 }}>
+        <p role="status" className="present-ceaa762b">
           {info}
         </p>
       )}

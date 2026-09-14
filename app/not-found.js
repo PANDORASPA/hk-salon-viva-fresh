@@ -13,19 +13,19 @@ export default async function NotFound() {
   return (
     <div className="salon">
       <Nav locale={locale} />
-      <main className="salon-wrap salon-section" style={{ textAlign: 'center', paddingTop: 80, paddingBottom: 80 }}>
-        <p style={{ color: '#a98152', letterSpacing: '0.16em', textTransform: 'uppercase', fontSize: 12, marginBottom: 12 }}>
+      <main className="salon-wrap salon-section present-29b1ec23" >
+        <p className="present-f1fde8e1">
           404
         </p>
-        <h1 className="salon-section-title" style={{ marginBottom: 12, fontSize: 36 }}>
+        <h1 className="salon-section-title present-d378edc2" >
           {locale === 'en' ? 'Page not found' : '找不到頁面'}
         </h1>
-        <p style={{ color: '#706961', marginBottom: 32 }}>
+        <p className="present-33a284d0">
           {locale === 'en'
             ? 'The page you are looking for has been moved, deleted, or never existed.'
             : '你想搵嘅頁面可能已經搬咗、刪咗、或者從來都冇。'}
         </p>
-        <div style={{ display: 'inline-flex', gap: 12, flexWrap: 'wrap', justifyContent: 'center' }}>
+        <div className="present-db270d8a">
           <Link className="salon-button" href="/">{t('nav.home', locale)}</Link>
           <Link className="salon-button salon-button-secondary" href="/booking">{t('nav.booking', locale)}</Link>
           <Link className="salon-button salon-button-secondary" href="/services">{t('nav.services', locale)}</Link>

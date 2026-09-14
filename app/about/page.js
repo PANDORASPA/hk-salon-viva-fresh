@@ -19,23 +19,23 @@ export default function AboutPage() {
     <div className="salon">
       <Nav locale={locale} />
       <main className="salon-wrap salon-section">
-        <h1 style={{ font: '600 42px/1.1 Georgia,serif', marginBottom: 24 }}>
+        <h1 className="present-4f80823c">
           {t('about.title', locale)}
         </h1>
-        <p style={{ fontSize: 18, color: '#4a4541', maxWidth: 680, marginBottom: 32 }}>
+        <p className="present-4ba21e2d">
           {t('about.intro', locale)}
         </p>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 24, marginBottom: 40 }}>
+        <div className="present-69cf5f48">
           {cards.map((c) => (
-            <div key={c.title} style={{ padding: 24, background: '#f7f3ec', borderRadius: 8, borderTop: '3px solid #a98152' }}>
-              <h3 style={{ margin: '0 0 8px', fontFamily: 'Georgia,serif' }}>{c.title}</h3>
-              <p style={{ color: '#706961', margin: 0 }}>{c.body}</p>
+            <div key={c.title} className="present-339bfcea">
+              <h3 className="present-9d645636">{c.title}</h3>
+              <p className="present-64fbd8bc">{c.body}</p>
             </div>
           ))}
         </div>
-        <div style={{ padding: 32, background: '#f7f3ec', borderRadius: 8 }}>
-          <h2 style={{ fontFamily: 'Georgia,serif', margin: '0 0 16px' }}>{t('about.treatment.title', locale)}</h2>
-          <p style={{ color: '#4a4541', marginBottom: 16 }}>{t('about.treatment.body', locale)}</p>
+        <div className="present-9bf61411">
+          <h2 className="present-30fca7a1">{t('about.treatment.title', locale)}</h2>
+          <p className="present-a3136548">{t('about.treatment.body', locale)}</p>
           <Link className="salon-button" href="/booking">{t('about.treatment.cta', locale)}</Link>
         </div>
       </main>

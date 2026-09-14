@@ -1,4 +1,6 @@
 import Footer from '../components/Footer'
+import { NonceStyle } from '../components/DocumentNonce'
+import { packageAccentCss } from '../../lib/content/package-accent.js'
 import { isStripeConfigured } from '../../lib/payments/stripe'
 import { getServerClient } from '../../lib/supabase/server'
 import { defaultServices } from '../../content/salon-poke-defaults'
@@ -14,7 +16,7 @@ export const metadata = {
 export const dynamic = 'force-dynamic'
 
 export default async function PackagesPage() {
-  const locale = getLocale()
+  const locale = await getLocale()
   let dbPackages = []
   let dbError = null
   let contact = publicContact()
@@ -50,43 +52,43 @@ export default async function PackagesPage() {
   const purchasesEnabled = isStripeConfigured()
   return (
     <div className="salon">
+      <NonceStyle>{packageAccentCss(packages)}</NonceStyle>
       <Nav locale={locale} />
       <main className="salon-wrap salon-section">
-        <h1 className="salon-section-title" style={{ textAlign: 'left', marginBottom: 8, fontSize: 42 }}>
+        <h1 className="salon-section-title present-43941296" >
           {t('packages.title', locale)}
         </h1>
-        <p style={{ color: '#706961', marginBottom: 8 }}>
+        <p className="present-8433b878">
           {t('packages.subtitle', locale)}
         </p>
         {!purchasesEnabled && (
-          <div className="form-error" style={{ marginBottom: 24, fontSize: 13 }}>
+          <div className="form-error present-81f004d1" >
             網上付款尚未啟用。請透過網站已提供的聯絡方式安排購買，現時不會建立模擬付款。
           </div>
         )}
         {dbError && (
-          <div className="form-error" style={{ marginBottom: 24 }}>{dbError}</div>
+          <div className="form-error present-fec3619e" >{dbError}</div>
         )}
 
         {packages.length === 0 ? (
-          <p style={{ color: '#928a81' }}>{t('packages.empty', locale)}</p>
+          <p className="present-62f09da3">{t('packages.empty', locale)}</p>
         ) : (
-          <div className="salon-services" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))' }}>
-            {packages.map(pkg => (
+          <div className="salon-services present-ff340128" >
+            {packages.map((pkg, index) => (
               <div
                 key={pkg.id}
-                className="salon-service-card"
-                style={{ borderLeft: `6px solid ${pkg.colour_hex || '#a98152'}`, display: 'flex', flexDirection: 'column' }}
+                className={`salon-service-card package-card package-accent-${index}`}
               >
-                <h3 style={{ marginBottom: 4 }}>{pkg.name}</h3>
-                <p style={{ color: '#706961', fontSize: 14, marginBottom: 12, flex: 1 }}>
+                <h3 className="present-6e7202d3">{pkg.name}</h3>
+                <p className="present-eccca7ae">
                   {pkg.description || (locale === 'en'
                     ? `Includes ${pkg.total_sessions} sessions, valid for ${pkg.validity_days} days.`
                     : `包含 ${pkg.total_sessions} 次服務，有效期 ${pkg.validity_days} 日。`)}
                 </p>
-                <p style={{ fontSize: 13, color: '#928a81', marginBottom: 8 }}>
+                <p className="present-61acfde2">
                   {pkg.total_sessions}{t('packages.sessionsUnit', locale)} · {pkg.validity_days}{t('packages.daysUnit', locale)}
                 </p>
-                <p className="salon-service-price" style={{ fontSize: 28, marginBottom: 12 }}>
+                <p className="salon-service-price present-82e23340" >
                   HK$ {pkg.price_hkd}
                 </p>
                 <PackageBuyButton pkg={pkg} label={t('packages.buy', locale)} enabled={purchasesEnabled} />
@@ -95,11 +97,11 @@ export default async function PackagesPage() {
           </div>
         )}
 
-        <div style={{ marginTop: 40, padding: 24, background: '#f7f3ec', borderRadius: 8 }}>
-          <h3 style={{ margin: '0 0 12px', fontFamily: 'Georgia,serif' }}>
+        <div className="present-60755ad6">
+          <h3 className="present-e68a0e44">
             {t('packages.custom.title', locale)}
           </h3>
-          <p style={{ color: '#706961', marginBottom: 12 }}>
+          <p className="present-933a7750">
             {t('packages.custom.body', locale)}
           </p>
           {contact.whatsappHref ? <a className="salon-button salon-button-secondary" href={contact.whatsappHref} target="_blank" rel="noopener">WhatsApp {locale === 'en' ? 'us' : ''}</a> : null}
@@ -114,9 +116,9 @@ function PackageBuyButton({ pkg, label, enabled }) {
   if (!enabled) return <button className="salon-button" type="button" disabled title="網上付款尚未啟用">網上付款尚未啟用</button>
   return (
     <a
-      className="salon-button"
+      className="salon-button present-fb5ec070"
       href={`/api/stripe/checkout?package_id=${encodeURIComponent(pkg.id)}`}
-      style={{ textAlign: 'center' }}
+
     >
       {label}
     </a>

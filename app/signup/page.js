@@ -8,24 +8,24 @@ export const dynamic = 'force-dynamic'
 
 export default function SignupPage() {
   return (
-    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--cream)', padding: 24 }}>
-      <div style={{ width: '100%', maxWidth: 420 }}>
-        <h1 style={{ fontWeight: 600, fontSize: 32, lineHeight: 1.1, fontFamily: 'Georgia,serif', textAlign: 'center', marginBottom: 8 }}>
+    <div className="present-41f27ca6">
+      <div className="present-3d5f0783">
+        <h1 className="present-7d896692">
           建立帳戶
         </h1>
-        <p style={{ textAlign: 'center', color: '#706961', marginBottom: 24 }}>
+        <p className="present-e9b345fd">
           用 email 同密碼開個帳戶，方便日後查看預約同套票。
         </p>
-        <div style={{ background: '#fff', border: '1px solid var(--border)', borderRadius: 8, padding: 28 }}>
+        <div className="present-73c97001">
           <Suspense fallback={<p>載入中…</p>}>
             <AuthForm mode="signup" />
           </Suspense>
-          <div style={{ marginTop: 16, textAlign: 'center', fontSize: 14, color: '#706961' }}>
-            已經有帳戶？ <Link href="/signin" style={{ color: '#a98152' }}>登入</Link>
+          <div className="present-52eba926">
+            已經有帳戶？ <Link href="/signin" className="present-154eba31">登入</Link>
           </div>
         </div>
-        <p style={{ textAlign: 'center', color: '#928a81', fontSize: 13, marginTop: 24 }}>
-          唔想註冊？<Link href="/booking" style={{ color: '#a98152' }}>直接填表預約</Link> 即可，無需登入。
+        <p className="present-e3703928">
+          唔想註冊？<Link href="/booking" className="present-154eba31">直接填表預約</Link> 即可，無需登入。
         </p>
         <Suspense fallback={null}>
           <SignInHelp />

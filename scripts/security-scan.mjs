@@ -164,6 +164,9 @@ function hasDynamicJavaScriptTail(text, index) {
   if (assertion) return hasDynamicTypeAssertionTail(text, cursor + assertion[0].length)
   if (sawNewline) {
     const tail = text.slice(cursor)
+    // Postfix ++/-- cannot cross a line terminator (including in comments).
+    // Here they begin an independent prefix expression after ASI.
+    if (/^(?:\+\+|--)/.test(tail)) return false
     // ASI does not terminate a literal before member/call access or operators.
     // An identifier beginning a new statement is independent of this value.
     return /^(?:[.\[(`+*/%<>=&|^?-]|\b(?:in|instanceof)\b)/.test(tail)

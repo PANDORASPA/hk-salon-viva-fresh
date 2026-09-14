@@ -31,11 +31,11 @@ export default function LanguageSwitcher({ current = 'zh-HK' }) {
   return (
     <button
       type="button"
-      className="admin-action"
+      className="admin-action present-e6ef5e8b"
       onClick={switchTo}
       disabled={pending}
       aria-label={`Switch language (${LABELS[current]} → ${LABELS[next]})`}
-      style={{ minWidth: 100 }}
+
     >
       {pending ? '…' : `${LABELS[current]} → ${LABELS[next]}`}
     </button>

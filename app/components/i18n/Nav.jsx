@@ -8,8 +8,8 @@ import LanguageSwitcher from '../LanguageSwitcher'
 export default function Nav({ locale = 'zh-HK' }) {
   return (
     <header className="salon-nav">
-      <div className="salon-wrap" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
-        <nav style={{ flex: 1 }}>
+      <div className="salon-wrap present-e3bae102" >
+        <nav className="present-126244f1">
           <Link href="/">{t('common.brand', locale)}</Link>
           <Link href="/services">{t('nav.services', locale)}</Link>
           <Link href="/booking">{t('nav.booking', locale)}</Link>

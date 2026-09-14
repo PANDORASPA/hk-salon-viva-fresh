@@ -66,12 +66,12 @@ export default function BookingsClient({ initialBookings = [] }) {
     } catch (caught) { setError(caught.message) } finally { setBusyId(null) }
   }
 
-  if (!items.length) return <p style={{ color: '#928a81', marginBottom: 40 }}>暫時沒有預約記錄。</p>
+  if (!items.length) return <p className="present-a0160dd3">暫時沒有預約記錄。</p>
 
   return (
     <>
-      {error ? <div className="form-error" style={{ marginBottom: 16 }} role="alert">⚠️ {error}</div> : null}
-      {message ? <div className="form-success" style={{ marginBottom: 16 }} role="status">✓ {message}</div> : null}
+      {error ? <div className="form-error present-4933c088"  role="alert">⚠️ {error}</div> : null}
+      {message ? <div className="form-success present-4933c088"  role="status">✓ {message}</div> : null}
       <div className="admin-list">
         {items.map((booking) => {
           const active = !['cancelled', 'completed', 'no_show'].includes(booking.status)
@@ -81,16 +81,16 @@ export default function BookingsClient({ initialBookings = [] }) {
               <div>
                 <strong>{booking.service?.name || `預約 ${booking.reference || `#${booking.id}`}`}</strong>
                 <p>{bookingTime(booking.startsAt)}</p>
-                <p style={{ fontSize: 12, color: '#706961', marginTop: 4 }}>服務員工：{booking.staff?.displayName || '待安排'}</p>
-                {redemption ? <p style={{ fontSize: 12, color: '#706961', marginTop: 4 }}>
+                <p className="present-37320b7c">服務員工：{booking.staff?.displayName || '待安排'}</p>
+                {redemption ? <p className="present-37320b7c">
                   套票：{redemption.packageName || `#${redemption.packageId}`} · {redemption.refundedAt ? '已退還' : '已扣減'} · 剩餘 {redemption.sessionsRemaining ?? '—'}/{redemption.totalSessions ?? '—'} 次
                 </p> : null}
               </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, alignItems: 'flex-end' }}>
+              <div className="present-2b8fc28b">
                 <span className={`status ${booking.status || 'pending'}`}>{booking.status || 'pending'}</span>
-                {active ? <div style={{ display: 'flex', gap: 6 }}>
+                {active ? <div className="present-3633e433">
                   <button type="button" className="admin-action" disabled={busyId === booking.id} onClick={() => reschedule(booking)}>改期</button>
-                  <button type="button" className="admin-action" style={{ color: '#c0392b' }} disabled={busyId === booking.id} onClick={() => cancel(booking.id)}>取消</button>
+                  <button type="button" className="admin-action present-a15c82f6"  disabled={busyId === booking.id} onClick={() => cancel(booking.id)}>取消</button>
                 </div> : null}
               </div>
             </article>

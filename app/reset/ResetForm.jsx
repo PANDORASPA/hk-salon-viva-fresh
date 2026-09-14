@@ -44,26 +44,26 @@ export default function ResetForm({ locale = 'zh-HK', emailHint }) {
 
   if (done) {
     return (
-      <p role="status" className="form-success" style={{ textAlign: 'center' }}>
+      <p role="status" className="form-success present-fb5ec070" >
         {t('reset.success', locale)}
       </p>
     )
   }
 
   return (
-    <form onSubmit={onSubmit}>
+    <form method="post" action="/api/auth/unavailable" onSubmit={onSubmit}>
       {error && (
-        <p role="alert" className="salon-error" style={{ marginBottom: 12 }}>
+        <p role="alert" className="salon-error present-c804002a" >
           ⚠️ {error}
         </p>
       )}
       {emailHint && (
-        <p style={{ fontSize: 13, color: '#706961', marginBottom: 12 }}>
+        <p className="present-8799bec9">
           {locale === 'en' ? 'Signed in as ' : '目前帳戶：'}<strong>{emailHint}</strong>
         </p>
       )}
-      <div className="form-group" style={{ marginBottom: 12 }}>
-        <label htmlFor="pw" style={{ display: 'block', marginBottom: 6, fontSize: 14, fontWeight: 500 }}>
+      <div className="form-group present-c804002a" >
+        <label htmlFor="pw" className="present-2ce7c8b9">
           {t('common.password', locale)} {t('common.required', locale)}
         </label>
         <input
@@ -74,11 +74,11 @@ export default function ResetForm({ locale = 'zh-HK', emailHint }) {
           required
           minLength={8}
           autoComplete="new-password"
-          style={{ width: '100%', padding: '10px 14px', border: '1.5px solid var(--border)', borderRadius: 8, fontSize: 15 }}
+          className="present-1fd96f2f"
         />
       </div>
-      <div className="form-group" style={{ marginBottom: 16 }}>
-        <label htmlFor="pw2" style={{ display: 'block', marginBottom: 6, fontSize: 14, fontWeight: 500 }}>
+      <div className="form-group present-4933c088" >
+        <label htmlFor="pw2" className="present-2ce7c8b9">
           {locale === 'en' ? 'Confirm password' : '確認密碼'} {t('common.required', locale)}
         </label>
         <input
@@ -89,14 +89,14 @@ export default function ResetForm({ locale = 'zh-HK', emailHint }) {
           required
           minLength={8}
           autoComplete="new-password"
-          style={{ width: '100%', padding: '10px 14px', border: '1.5px solid var(--border)', borderRadius: 8, fontSize: 15 }}
+          className="present-1fd96f2f"
         />
       </div>
       <button
         type="submit"
-        className="salon-button"
+        className="salon-button present-cd00d17d"
         disabled={busy}
-        style={{ width: '100%', textAlign: 'center' }}
+
       >
         {busy ? t('common.loading', locale) : t('reset.cta', locale)}
       </button>

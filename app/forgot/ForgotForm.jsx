@@ -46,21 +46,21 @@ export default function ForgotForm({ locale = 'zh-HK' }) {
 
   if (done) {
     return (
-      <p role="status" className="form-success" style={{ textAlign: 'center' }}>
+      <p role="status" className="form-success present-fb5ec070" >
         {t('forgot.sent', locale)}
       </p>
     )
   }
 
   return (
-    <form onSubmit={onSubmit}>
+    <form method="post" action="/api/auth/unavailable" onSubmit={onSubmit}>
       {error && (
-        <p role="alert" className="salon-error" style={{ marginBottom: 12 }}>
+        <p role="alert" className="salon-error present-c804002a" >
           ⚠️ {error}
         </p>
       )}
-      <div className="form-group" style={{ marginBottom: 16 }}>
-        <label htmlFor="email" style={{ display: 'block', marginBottom: 6, fontSize: 14, fontWeight: 500 }}>
+      <div className="form-group present-4933c088" >
+        <label htmlFor="email" className="present-2ce7c8b9">
           {t('common.email', locale)} {t('common.required', locale)}
         </label>
         <input
@@ -70,14 +70,14 @@ export default function ForgotForm({ locale = 'zh-HK' }) {
           onChange={(e) => setEmail(e.target.value)}
           required
           autoComplete="email"
-          style={{ width: '100%', padding: '10px 14px', border: '1.5px solid var(--border)', borderRadius: 8, fontSize: 15 }}
+          className="present-1fd96f2f"
         />
       </div>
       <button
         type="submit"
-        className="salon-button"
+        className="salon-button present-cd00d17d"
         disabled={busy}
-        style={{ width: '100%', textAlign: 'center' }}
+
       >
         {busy ? t('common.loading', locale) : t('forgot.cta', locale)}
       </button>

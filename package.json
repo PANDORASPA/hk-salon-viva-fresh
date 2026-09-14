@@ -9,6 +9,7 @@
     "start": "next start",
     "lint": "next lint",
     "test:unit": "node --test tests/*.test.mjs",
+    "test:production-csp": "node --test tests/production-csp.mjs",
     "test:e2e": "playwright test",
     "seed:e2e": "node scripts/seed-e2e.mjs seed",
     "cleanup:e2e": "node scripts/seed-e2e.mjs cleanup",

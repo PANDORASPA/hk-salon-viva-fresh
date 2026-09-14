@@ -22,16 +22,16 @@ export default async function ProfilePage() {
     <div className="salon">
       <Nav locale={locale} />
       <main className="salon-wrap salon-section">
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12, marginBottom: 24 }}>
-          <h1 className="salon-section-title" style={{ textAlign: 'left', marginBottom: 0, fontSize: 36 }}>
+        <div className="present-110bc484">
+          <h1 className="salon-section-title present-609d08b8" >
             {locale === 'en' ? 'Edit profile' : '編輯個人資料'}
           </h1>
-          <Link href="/account" style={{ color: '#a98152', fontSize: 14 }}>
+          <Link href="/account" className="present-78539e49">
             ← {locale === 'en' ? 'Back to account' : '返回帳戶'}
           </Link>
         </div>
 
-        <div style={{ background: '#fff', border: '1px solid var(--border)', borderRadius: 8, padding: 28, maxWidth: 480 }}>
+        <div className="present-5951a95a">
           <ProfileForm
             initialProfile={profile}
             initialEmail={profile?.email}

@@ -13,21 +13,21 @@ export default function ForgotPage() {
   return (
     <div className="salon">
       <Nav locale={locale} />
-      <main style={{ minHeight: '70vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
-        <div style={{ width: '100%', maxWidth: 420 }}>
-          <h1 style={{ fontWeight: 600, fontSize: 32, lineHeight: 1.1, fontFamily: 'Georgia,serif', textAlign: 'center', marginBottom: 8 }}>
+      <main className="present-f018ab06">
+        <div className="present-3d5f0783">
+          <h1 className="present-7d896692">
             {t('forgot.title', locale)}
           </h1>
-          <p style={{ textAlign: 'center', color: '#706961', marginBottom: 24 }}>
+          <p className="present-e9b345fd">
             {t('forgot.subtitle', locale)}
           </p>
-          <div style={{ background: '#fff', border: '1px solid var(--border)', borderRadius: 8, padding: 28 }}>
+          <div className="present-73c97001">
             <Suspense fallback={<p>{t('common.loading', locale)}</p>}>
               <ForgotForm locale={locale} />
             </Suspense>
           </div>
-          <p style={{ textAlign: 'center', marginTop: 24 }}>
-            <Link href="/signin" style={{ color: '#a98152', fontSize: 14 }}>
+          <p className="present-729fe37b">
+            <Link href="/signin" className="present-78539e49">
               ← {t('forgot.back', locale)}
             </Link>
           </p>

@@ -47,10 +47,10 @@ export default async function ServicesPage() {
     <div className="salon">
       <Nav locale={locale} />
       <main className="salon-wrap salon-section">
-        <h1 className="salon-section-title" style={{ textAlign: 'left', marginBottom: 8, fontSize: 42 }}>
+        <h1 className="salon-section-title present-43941296" >
           {t('services.title', locale)}
         </h1>
-        <p style={{ color: '#706961', marginBottom: 40 }}>
+        <p className="present-66a96bd6">
           {t('services.subtitle', locale)}
         </p>
         <div className="salon-services">
@@ -69,7 +69,7 @@ export default async function ServicesPage() {
             </div>
           ))}
         </div>
-        {contact.whatsappHref ? <div style={{ textAlign: 'center', marginTop: 40 }}><a className="salon-button" href={contact.whatsappHref} target="_blank" rel="noopener">{t('services.cta', locale)}</a></div> : null}
+        {contact.whatsappHref ? <div className="present-460e584e"><a className="salon-button" href={contact.whatsappHref} target="_blank" rel="noopener">{t('services.cta', locale)}</a></div> : null}
       </main>
       <Footer />
     </div>
