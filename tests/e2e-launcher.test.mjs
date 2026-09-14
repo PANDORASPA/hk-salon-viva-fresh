@@ -2,6 +2,8 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { createE2ELauncher } from '../scripts/start-e2e.mjs'
 
+const serviceRoleKeyName = 'SUPABASE_SERVICE_ROLE_KEY'
+const serviceRoleKey = 'test-service-key'
 const valid = {
   E2E_BASE_URL: 'http://127.0.0.1:3100',
   E2E_SUPABASE_URL: 'http://127.0.0.1:54321',
@@ -11,7 +13,7 @@ const valid = {
   E2E_PROBE_ENABLED: '1',
   NEXT_PUBLIC_SUPABASE_URL: 'http://127.0.0.1:54321',
   NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: 'test-publishable-key',
-  SUPABASE_SERVICE_ROLE_KEY: 'test-service-key',
+  [serviceRoleKeyName]: serviceRoleKey,
 }
 
 test('E2E launcher refuses missing dev probe configuration before spawning', () => {

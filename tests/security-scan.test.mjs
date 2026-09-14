@@ -17,3 +17,46 @@ test('security scan distinguishes a secret value from a documented variable name
     { line: 1, label: 'Secret env exposed publicly' },
   ])
 })
+
+test('security scan finds each literal assignment across JavaScript, shell, PowerShell, and object syntax', () => {
+  const key = 'SUPABASE_SERVICE_ROLE_KEY'
+  const stripe = 'STRIPE_SECRET_KEY'
+  const webhook = 'STRIPE_WEBHOOK_SECRET'
+  const publicKey = 'NEXT_PUBLIC_SERVICE_ROLE_KEY'
+  const source = [
+    `const ${key} =`,
+    "  'first-literal'",
+    `const ${key} = 'second-literal'; export ${stripe}=third-literal ${webhook}=fourth-literal; $env:${webhook} = \"fifth-literal\"`,
+    `let ${key}: string = 'typed-literal'; ${key}=fifth-literal`,
+    `{ ${publicKey}: 'public-literal' }`,
+  ].join('\n')
+
+  assert.deepEqual(scanText('fixture.ts', source), [
+    { line: 1, label: 'Supabase service role key' },
+    { line: 3, label: 'Supabase service role key' },
+    { line: 3, label: 'Stripe secret key' },
+    { line: 3, label: 'Stripe webhook secret' },
+    { line: 3, label: 'Stripe webhook secret' },
+    { line: 4, label: 'Supabase service role key' },
+    { line: 4, label: 'Supabase service role key' },
+    { line: 5, label: 'Secret env exposed publicly' },
+  ])
+})
+
+test('security scan ignores env reads, prose, comments, and placeholders in every supported syntax', () => {
+  const key = 'SUPABASE_SERVICE_ROLE_KEY'
+  const stripe = 'STRIPE_SECRET_KEY'
+  const publicKey = 'NEXT_PUBLIC_SERVICE_ROLE_KEY'
+  const source = [
+    `const serviceKey = process.env.${key}`,
+    `# ${key}=<set-in-secret-store>`,
+    `${key}=<set-in-secret-store>`,
+    `$env:${key} = '<set-in-secret-store>'`,
+    `const ${stripe} =`,
+    "  '<set-in-secret-store>'",
+    `{ ${key}: '<set-in-secret-store>' }`,
+    `Documentation: ${publicKey} is forbidden in public configuration.`,
+  ].join('\n')
+
+  assert.deepEqual(scanText('README.md', source), [])
+})

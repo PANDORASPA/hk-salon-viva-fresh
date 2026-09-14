@@ -20,12 +20,12 @@ Configure the names below in the target secret store, never in source control.
 | Server database client | `SUPABASE_SERVICE_ROLE_KEY` |
 | Canonical site origin | `NEXT_PUBLIC_SITE_URL` |
 | Reminder cron | `CRON_SECRET` |
-| Email | `RESEND_API_KEY`, `NOTIFY_EMAIL_FROM`, `NOTIFY_EMAIL_PROVIDER`, `NOTIFY_DRY_RUN` |
+| Email | `RESEND_API_KEY`, `NOTIFY_EMAIL_FROM`, `NOTIFY_DRY_RUN` |
 | WhatsApp setting | `NOTIFY_WHATSAPP_PROVIDER` |
 | Stripe, only when enabled | `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY`, `STRIPE_CURRENCY` |
 | Optional shared rate-limit store | `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN` |
 
-Add `/auth/callback` under the exact `NEXT_PUBLIC_SITE_URL` to Supabase Auth redirect configuration. The cron route is `/api/cron/reminders`; use an `Authorization: Bearer` header derived from `CRON_SECRET`. The legacy query-secret compatibility path must not be used for new schedules.
+Add `/auth/callback` under the exact `NEXT_PUBLIC_SITE_URL` to Supabase Auth redirect configuration. The cron route is `/api/cron/reminders`; use an `Authorization: Bearer` header derived from `CRON_SECRET`. The legacy query-secret compatibility path must not be used for new schedules. Email delivery is controlled by `app_settings.notify_email_enabled` and `app_settings.notify_dry_run`; `NOTIFY_DRY_RUN=1` forces dry-run, while `NOTIFY_DRY_RUN=0` defers to the saved setting. Live Resend additionally needs `RESEND_API_KEY`, `NOTIFY_EMAIL_FROM`, and the optional `resend` SDK. Live Stripe additionally needs its configured variables and the optional `stripe` SDK. Neither SDK is currently installed: enabling either feature on preview or production is no-go until its package is installed and the relevant smoke has passed.
 
 ## Migration rehearsal and production preflight
 

@@ -20,6 +20,7 @@ Do not deploy or open booking if any item below is incomplete or failed.
 - [ ] Current committed code has a passing `npm run test:unit` result.
 - [ ] Current committed code has a passing `npm run security:scan` result.
 - [ ] Current committed code has a passing `npm run build` result.
+- [ ] If live Resend or Stripe is enabled, its optional SDK package is installed and the enabled provider smoke passes; this checkout currently has neither package, so either feature is no-go until that evidence exists.
 - [ ] `git diff --check` is clean and no tracked secret or local E2E runtime file exists.
 - [ ] The isolated E2E suite passes after its own guarded provisioning. A missing E2E credential is a blocker, not a pass.
 - [ ] A hosted Supabase clone/isolated project has migration, RLS, atomic-booking, and concurrency evidence.
@@ -35,7 +36,7 @@ Any P0 security/data-loss result or P1 booking-integrity result is an immediate 
 - [ ] Set server-only `SUPABASE_SERVICE_ROLE_KEY`; verify it is absent from browser bundles and public environment names.
 - [ ] Set `NEXT_PUBLIC_SITE_URL` to the exact target origin and add its `/auth/callback` URL in Supabase Auth redirects.
 - [ ] Set `CRON_SECRET`; configure `/api/cron/reminders` to use the Authorization bearer header.
-- [ ] Decide notification mode using `RESEND_API_KEY`, `NOTIFY_EMAIL_FROM`, `NOTIFY_EMAIL_PROVIDER`, `NOTIFY_DRY_RUN`, and `NOTIFY_WHATSAPP_PROVIDER`; test the stored outcome, not just a UI message.
+- [ ] Decide notification mode using `app_settings.notify_email_enabled`, `app_settings.notify_dry_run`, `NOTIFY_DRY_RUN`, `RESEND_API_KEY`, `NOTIFY_EMAIL_FROM`, and `NOTIFY_WHATSAPP_PROVIDER`; `NOTIFY_DRY_RUN=1` forces dry-run, while `0` defers to the saved setting. Test the stored outcome, not just a UI message.
 - [ ] If self-service packages are enabled, set `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY`, and `STRIPE_CURRENCY`; otherwise keep the purchase path honestly disabled.
 - [ ] Set `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN` if shared multi-instance rate limiting is required.
 - [ ] Enter only approved contact content. Confirm missing phone, WhatsApp, email, Instagram, address, and address-note fields remain hidden rather than substituted.
@@ -49,6 +50,7 @@ On a clone or isolated project first, apply every file from `supabase/migrations
 | Check | Isolated / clone evidence | Production evidence |
 | --- | --- | --- |
 | Migration order and completion | ____________________ | ____________________ |
+| Hosted database advisors are reviewed with no launch-blocking findings | ____________________ | ____________________ |
 | Overlap preflight returns zero rows | ____________________ | ____________________ |
 | `appointments_staff_occupied_excl` exists | ____________________ | ____________________ |
 | RLS: customer A cannot read customer B | ____________________ | ____________________ |
