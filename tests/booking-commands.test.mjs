@@ -273,6 +273,49 @@ test('moving a past confirmed appointment into the future cannot bypass inactive
   assert.equal((await db.query('select is_active from public.staff where id=1')).rows[0].is_active, false)
 })
 
+test('inactive staff permits historical updates but rejects a future active reassignment', async t => {
+  // Mutation caught: enforcing staff activity for every historical row rather
+  // than only an appointment whose effective occupied range remains future.
+  const db = await bookingDatabase(t)
+  const past = (await db.query(`select now() - interval '6 hours' as first_start,
+    now() - interval '5 hours' as first_end, now() - interval '4 hours' as second_start,
+    now() - interval '3 hours' as second_end`)).rows[0]
+  const historical = (await db.query(`insert into public.appointments
+    (service_id,staff_id,customer_name,customer_phone,starts_at,ends_at,occupied_until,status)
+    values (1,1,'History Edit','91234567',$1,$2,$2,'confirmed') returning id`,
+    [past.first_start, past.first_end])).rows[0]
+  const cancellable = (await db.query(`insert into public.appointments
+    (service_id,staff_id,customer_name,customer_phone,starts_at,ends_at,occupied_until,status)
+    values (1,1,'History Cancel','92345678',$1,$2,$2,'confirmed') returning id`,
+    [past.second_start, past.second_end])).rows[0]
+  await callSql(db, 'admin_update_staff_audited', {
+    p_actor_id: adminId, p_staff_id: 1, p_name: '預設員工', p_display_name: 'SALON POKE 團隊', p_bio: null,
+    p_colour_hex: '#a98152', p_is_active: false, p_sort_order: 0, p_service_ids: [1, 2],
+  })
+  await db.exec('set role service_role')
+  try {
+    const corrected = (await db.query(`update public.appointments set starts_at=now()-interval '8 hours',
+      ends_at=now()-interval '7 hours' where id=$1 returning starts_at, ends_at`, [historical.id])).rows[0]
+    assert.ok(corrected.ends_at < new Date())
+    assert.equal((await db.query(`update public.appointments set status='completed' where id=$1 returning status`,
+      [historical.id])).rows[0].status, 'completed')
+    // This is the existing admin notes save payload: unchanged status plus notes.
+    assert.deepEqual((await db.query(`update public.appointments set status='completed', admin_notes='Corrected history'
+      where id=$1 returning status, admin_notes`, [historical.id])).rows[0],
+    { status: 'completed', admin_notes: 'Corrected history' })
+    assert.equal((await db.query(`update public.appointments set status='cancelled' where id=$1 returning status`,
+      [cancellable.id])).rows[0].status, 'cancelled')
+  } finally { await db.exec('reset role') }
+
+  const future = await createSql(db, { p_staff_preference: '2', p_starts_at: await futureSlot(db, 9) })
+  await db.exec('set role service_role')
+  try {
+    await assert.rejects(db.query('update public.appointments set staff_id=1 where id=$1', [future.id]),
+      error => error.message === 'staff_unavailable')
+  } finally { await db.exec('reset role') }
+  assert.equal((await db.query('select staff_id from public.appointments where id=$1', [future.id])).rows[0].staff_id, 2)
+})
+
 test('wrapper stores only SHA-256 of a random 32-byte confirmation token and sanitizes errors/appointment', async t => {
   const db = await bookingDatabase(t)
   const { createAppointment, rescheduleAppointment, cancelAppointment } = await import('../lib/booking/commands.js')
