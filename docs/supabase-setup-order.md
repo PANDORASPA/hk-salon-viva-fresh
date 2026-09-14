@@ -1,83 +1,150 @@
-# Supabase Setup Order
+# Supabase setup and staff foundation rollout
 
-The canonical database source now lives under [`supabase/migrations`](./supabase/migrations). The root-level SQL files remain in the repository only as legacy reference material from the pre-migration cleanup stage.
+The canonical SQL is in `supabase/migrations`. The previous March 2026 setup list
+described the retired `bookings` platform; this application uses `appointments`.
+Do not apply root-level legacy SQL as a substitute for the migrations below.
 
-## Canonical Migration Order
+## Canonical migration order
 
-Apply the files in filename order:
+| File | Purpose |
+| --- | --- |
+| `20260813000100_salon_poke_core.sql` | Core salon entities, appointment RPC, hours and triggers |
+| `20260813000200_salon_poke_rls_storage.sql` | Admin helper, RLS, grants and gallery storage |
+| `20260905000000_customers_packages.sql` | Customers, package catalogue and ownership records |
+| `20260905000001_appointments_customer_id.sql` | Appointment/customer/package links and legacy RPC |
+| `20260907000000_package_redeem_rpc.sql` | Package redemption/refund RPCs (fresh-install blockers below) |
+| `20260907000001_notifications_table.sql` | Notification delivery records |
+| `20260907000002_app_settings.sql` | Runtime settings |
+| `20260914101458_booking_staff_foundation.sql` | Staff, skills, weekly hours, time off and per-staff occupancy |
 
-1. [`supabase/migrations/20260318000100_baseline_core_schema.sql`](./supabase/migrations/20260318000100_baseline_core_schema.sql)
-   - Creates the current baseline business tables, core indexes, and public read policies.
-   - Excludes demo content.
+Fresh-install replay currently has two known defects in the historical package
+RPC migration: `redeem_customer_package` returns `public.package_redemptions`
+before that table exists, and `deduct_package_session(bigint,bigint)` changes
+return type from `void` to `public.package_redemptions` with `CREATE OR REPLACE`,
+which PostgreSQL rejects. The migration's own comment describes creating the
+table first, but that alone does not fix the return-type change. These require a
+separately reviewed historical migration repair before a clean full-chain reset.
+Do not resolve either by dropping production data or silently skipping it during
+deployment. The Task 2 tests skip that one migration and state this limitation.
 
-2. [`supabase/migrations/20260318000200_booking_v2.sql`](./supabase/migrations/20260318000200_booking_v2.sql)
-   - Adds booking v2 normalization, overlap protection, and scheduling helper tables.
+## Staff foundation: before applying
 
-3. [`supabase/migrations/20260318000300_auth_membership.sql`](./supabase/migrations/20260318000300_auth_membership.sql)
-   - Creates `member_profiles`, auth trigger wiring, and member-owned booking/profile policies.
+Use a backup and first rehearse against an isolated copy of the existing database.
+Apply the entire migration file during a quiet period: its transaction takes an
+exclusive lock on appointments until completion. Public display and server
+booking readers/writers may wait while the lock is held.
 
-4. [`supabase/migrations/20260318000400_admin_auth_rls.sql`](./supabase/migrations/20260318000400_admin_auth_rls.sql)
-   - Adds admin flags and the RLS policies used by the current admin and member flows.
+The preflight runs before creating staff or changing appointment rows. Every
+legacy appointment is assigned to the default staff member and receives a saved
+15-minute buffer, matching the historical public booking RPC. Cancelled and
+no-show appointments retain their data but do not occupy time. Pending, confirmed
+and completed appointments all participate in overlap checks, including history.
+No conflicts are automatically cancelled, deleted, moved or reassigned.
 
-5. [`supabase/migrations/20260318000500_signup_resilience.sql`](./supabase/migrations/20260318000500_signup_resilience.sql)
-   - Hardens signup/profile trigger behavior for live auth flows.
-
-6. [`supabase/migrations/20260318000600_booking_timestamp_guard.sql`](./supabase/migrations/20260318000600_booking_timestamp_guard.sql)
-   - Adds timestamp guards used by booking normalization and overlap detection.
-
-7. [`supabase/migrations/20260318000700_admin_schedule_rls.sql`](./supabase/migrations/20260318000700_admin_schedule_rls.sql)
-   - Adds schedule-related RLS coverage for the admin scheduling surface.
-
-8. [`supabase/migrations/20260318000800_admin_policy_helper.sql`](./supabase/migrations/20260318000800_admin_policy_helper.sql)
-   - Introduces the admin helper function used to avoid recursive policy checks.
-
-9. [`supabase/migrations/20260318000900_backfill_partial_staff_schedule.sql`](./supabase/migrations/20260318000900_backfill_partial_staff_schedule.sql)
-   - Repairs partial weekly staff schedule rows from earlier admin data.
-
-10. [`supabase/migrations/20260319000100_schedule_guardrails.sql`](./supabase/migrations/20260319000100_schedule_guardrails.sql)
-   - Adds schedule validation guardrails before the operational expansion.
-
-11. [`supabase/migrations/20260319000200_booking_lifecycle_guardrails.sql`](./supabase/migrations/20260319000200_booking_lifecycle_guardrails.sql)
-   - Adds lifecycle checks around booking creation and status changes.
-
-12. [`supabase/migrations/20260319000300_operational_foundation.sql`](./supabase/migrations/20260319000300_operational_foundation.sql)
-   - Creates the phase 1 operational foundation tables such as locations, provider groups, holidays, resources, and transactions.
-
-13. [`supabase/migrations/20260319000400_phase2_booking_rules_foundation.sql`](./supabase/migrations/20260319000400_phase2_booking_rules_foundation.sql)
-   - Bridges the operational foundation into phase 2 booking rules with nullable relation columns, constraints, indexes, and public/admin policies for location, provider-group, and resource-aware booking logic.
-
-## Optional Seed
-
-- [`supabase/seed.sql`](./supabase/seed.sql) contains clean demo content for local development and internal demos.
-- Do not treat the seed file as production content.
-- Fresh production setup should run migrations first, then only run selected data imports that reflect real shop content.
-
-## Recommended Fresh Setup
-
-1. Create a clean Supabase project or reset a development database.
-2. Apply the files in `supabase/migrations` in filename order.
-3. Optionally run `supabase/seed.sql` for demo or development content.
-4. Create or register at least one member account through the app.
-5. Mark one row in `member_profiles` as admin:
+Run these read-only checks before migration; both must return no problem rows:
 
 ```sql
-update public.member_profiles
-set is_admin = true
-where email = 'you@example.com';
+select id, reference, starts_at, ends_at
+from public.appointments
+where not isfinite(starts_at) or not isfinite(ends_at) or ends_at <= starts_at;
+
+select a.id as first_id, a.reference as first_reference,
+       b.id as second_id, b.reference as second_reference,
+       a.starts_at as first_start, a.ends_at + interval '15 minutes' as first_occupied_until,
+       b.starts_at as second_start, b.ends_at + interval '15 minutes' as second_occupied_until
+from public.appointments a
+join public.appointments b on a.id < b.id
+where a.status in ('pending','confirmed','completed')
+  and b.status in ('pending','confirmed','completed')
+  and a.starts_at < b.ends_at + interval '15 minutes'
+  and b.starts_at < a.ends_at + interval '15 minutes'
+order by a.id, b.id;
 ```
 
-6. Verify `/account`, booking, product order, ticket purchase, and `/admin`.
+A failed preflight reports the number of conflicting pairs and leaves the entire
+transaction unapplied. If using an interactive SQL session, issue `ROLLBACK`
+after an error. Resolve the identified records with the shop owner, then retry the
+whole file. Do not apply selected statements or disable the exclusion constraint.
+After a successful application, let Supabase migration history prevent replay;
+this migration is transactional, not an independently repeatable SQL script.
 
-## Legacy SQL Status
+## Resulting interfaces and access
 
-- [`supabase-setup.sql`](./supabase-setup.sql), [`sql-update.sql`](./sql-update.sql), [`sql-booking-v2.sql`](./sql-booking-v2.sql), [`sql-auth-membership.sql`](./sql-auth-membership.sql), and [`sql-admin-auth-rls.sql`](./sql-admin-auth-rls.sql) are now legacy source material.
-- They should not be used as the fresh setup path going forward.
-- [`sql-fix-permissions.sql`](./sql-fix-permissions.sql) remains an emergency legacy repair script and must not be used as part of a clean baseline.
+- `staff`: `name` is internal; public queries explicitly select
+  `id,display_name,bio,colour_hex,is_active,sort_order`. Only active rows are visible.
+  `select('*')` deliberately fails for public/member clients because it includes
+  private columns. Server admin routes use the service role to read full records.
+- `staff_services`: composite key `(staff_id,service_id)`; public reads require
+  active staff plus an enabled, published service. The initial default staff is
+  assigned all enabled services, including unpublished ones for later publishing.
+- `staff_weekly_hours`: composite key `(staff_id,weekday)`; `weekday` is 0–6,
+  `is_working` and local `starts_at`/`ends_at` are seeded from `business_hours`.
+  Weekly hours for active staff are available to public availability consumers.
+- `staff_time_off`: exact timestamp ranges, optional private `reason` and
+  `created_by`. Anonymous clients have no access. Authenticated non-admin reads
+  return zero rows; active admins may read, and server routes may manage records.
+- All four tables use RLS and explicit grants. All direct browser mutations are
+  denied; admin writes belong in server routes that recheck `admin_users`, validate
+  input and audit the change. The service role receives only required CRUD and
+  identity-sequence usage privileges. Old automatic grants are explicitly revoked.
+- `appointments.staff_id` and `occupied_until` are required. A temporary default
+  staff ID preserves old insert/RPC calls until the new commands assign staff
+  explicitly. Explicit null staff is rejected. Retire this compatibility default
+  after all booking commands have migrated; it is not an availability allocator.
+- `buffer_minutes` defaults to 15 and is restricted to 0–120. An invoker trigger
+  derives `occupied_until = ends_at + buffer_minutes` on every insert/update;
+  supplied range ends cannot shrink occupancy. `[starts_at,occupied_until)` allows
+  the next booking at the exact range boundary. Cancelled/no-show states release
+  occupancy; restoring an active state must pass the constraint again.
+- `source` is `web`, `account` or `admin`; confirmation stores only
+  `confirmation_token_hash`. Cancellation metadata is `cancelled_at` plus nullable
+  auth-user FK `cancelled_by`. Token generation and cancellation commands follow
+  in later tasks.
 
-## Compatibility Notes
+Staff/service mapping and weekly-hours checks do not replace the later atomic
+booking RPC: it must validate active staff, capability, working hours, time off,
+shop rules and package ownership. The legacy RPC still has a shop-wide conflict
+query and is only a compatibility bridge, not the new multi-staff allocator.
 
-- `bookings` still keeps legacy `date` and `time` fields for compatibility, but new work should treat `appointment_date`, `start_time`, `end_time`, and `buffer_end_time` as source of truth.
-- `orders.member_user_id` and `user_tickets.member_user_id` are the current member ownership fields used by the app.
-- `staff.location_id`, `staff.provider_group_id`, `services.default_location_id`, and `services.default_provider_group_id` are phase 2 compatibility columns that allow the booking engine to evolve without breaking existing staff JSON schedule data.
-- `bookings.location_id`, `bookings.provider_group_id`, `orders.location_id`, and `transactions.location_id/provider_group_id/resource_id` are phase 2 bridge columns for multi-location and resource-aware operations.
-- `users` is a historical table from the legacy schema and is not the active member identity source.
+## After applying
+
+Record appointment counts before/after and verify all historical references are
+still present. The migration updates appointment `updated_at` via the existing
+update trigger; business fields, IDs and created timestamps are preserved.
+
+```sql
+select count(*) as appointments,
+       count(*) filter (where staff_id is null or occupied_until is null) as missing_staff_or_end,
+       count(*) filter (where occupied_until <> ends_at + make_interval(mins => buffer_minutes)) as invalid_occupancy
+from public.appointments;
+
+select conname, pg_get_constraintdef(oid)
+from pg_constraint
+where conrelid = 'public.appointments'::regclass
+  and conname = 'appointments_staff_occupied_excl';
+
+select c.relname, c.relrowsecurity
+from pg_class c
+where c.relnamespace = 'public'::regnamespace
+  and c.relname in ('staff','staff_services','staff_weekly_hours','staff_time_off');
+
+select * from public.staff_services order by staff_id, service_id;
+select * from public.staff_weekly_hours order by staff_id, weekday;
+```
+
+Expect zero missing/invalid occupancy rows, one exclusion constraint, and RLS true
+for all four tables. Verify staff display and private time-off reads using actual
+anon, member and admin sessions before deployment.
+
+Run `node --test tests/booking-staff-schema.test.mjs` for the disposable PostgreSQL
+tests, then `npm run test:unit`. The tests use pinned PGlite PostgreSQL WASM with
+real `btree_gist`/`pgcrypto` extensions and execute this migration unmodified.
+They cover backfill, transactional preflight failure, exclusion behavior, range
+derivation, legacy insert compatibility and role-based SQL access, both with and
+without old automatic grants. Supabase-owned auth/storage fixture scaffolding is
+minimal, and the historical package RPC migration is excluded as explained above.
+This is not a PostgREST, hosted Supabase, advisor or concurrent-session test. A
+full local/preview Supabase verification remains part of the release gate.
+
+The migration follows the [2026 Data API explicit-grant change](https://supabase.com/changelog/45329-breaking-change-tables-not-exposed-to-data-and-graphql-api-automatically)
+and [Supabase API security guidance](https://supabase.com/docs/guides/api/securing-your-api).
