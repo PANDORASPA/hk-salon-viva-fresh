@@ -42,3 +42,12 @@ test('stripHtml removes tags', () => {
   assert.equal(stripHtml('<p>hello <b>world</b></p>'), 'hello world')
   assert.equal(stripHtml('<a href="x">link</a>'), 'link')
 })
+
+test('provider error reasons are controlled codes and never echo credentials', () => {
+  const { sanitizeProviderReason } = __testing
+  for (const message of ['api_key=secret-value', 'Authorization: Bearer secret-value', 'token: secret-value', 'key secret-value']) {
+    const reason = sanitizeProviderReason(message)
+    assert.equal(reason, 'provider_error')
+    assert.doesNotMatch(reason, /secret-value|api_key|bearer|token|key/i)
+  }
+})

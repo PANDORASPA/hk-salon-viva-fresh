@@ -35,6 +35,18 @@ test('public contact controls are emitted only for valid administrator-supplied 
   })
 })
 
+test('phone and WhatsApp reject letters and punctuation-only values even when they contain digits', () => {
+  // Mutation caught: stripping arbitrary characters turns "call 852..." into
+  // a real-looking contact control and leaks malformed CMS data publicly.
+  const contact = publicContact({
+    whatsapp: 'call 852 9123 4567',
+    phone: '---',
+  })
+  assert.equal(contact.whatsapp, null)
+  assert.equal(contact.phone, null)
+  assert.equal(publicContact({ whatsapp: '+852 (9123) 4567', phone: '+852 (9123) 4567' }).whatsapp, '85291234567')
+})
+
 test('public production sources contain no launch placeholders', async () => {
   const sources = await Promise.all(['content/salon-poke-defaults.js', 'app/layout.js', 'app/page.js', 'app/contact/page.js', 'app/location/page.js'].map(path => readFile(new URL(`../${path}`, import.meta.url), 'utf8')))
   assert.doesNotMatch(sources.join('\n'), /XXXXXXXX|待提供|示意圖|example\.com/i)

@@ -151,6 +151,20 @@ test('phone-only delivery records disabled email before considering a missing ad
   } finally { __testing.setServiceClient(null) }
 })
 
+test('booking dry-run gates the email provider before any live call', async () => {
+  const rows = []
+  __testing.setServiceClient(notificationClient(rows, { settings: { notify_email_enabled: true, notify_dry_run: true } }))
+  __testing.setEmailSender(async () => assert.fail('dry-run must not invoke the email provider'))
+  try {
+    const result = await sendBookingNotification({ event: 'booking_confirmation', booking: { id: 131, customer_name: 'Ada', customer_phone: '91234567', customer_email: 'ada@example.test', starts_at: '2026-09-08T14:30:00.000Z' }, service: { name: 'Test' } })
+    assert.deepEqual(result.results.email, { ok: false, status: 'dry_run', reason: 'dry_run_enabled' })
+    assert.deepEqual(rows[0].channel_results.email, { ok: false, status: 'dry_run', reason: 'dry_run_enabled' })
+  } finally {
+    __testing.setEmailSender(null)
+    __testing.setServiceClient(null)
+  }
+})
+
 test('an enabled email channel without an address remains actionable', async () => {
   const rows = []
   __testing.setServiceClient(notificationClient(rows))
