@@ -1,12 +1,11 @@
 import { NextResponse } from 'next/server.js'
 import { revalidatePath } from 'next/cache.js'
-import { adminContext, audit, jsonError } from '../../../../../lib/admin/salon-api.js'
+import { adminContext, jsonError } from '../../../../../lib/admin/salon-api.js'
 import { guardMutationRequest } from '../../../../../lib/security/request-guards.js'
 import { isPositiveSafeInteger, validateStaffInput } from '../../../../../lib/validation/staff.js'
 
 const toStaff = (row, serviceIds = []) => row && ({ id: row.id, name: row.name, displayName: row.display_name,
   bio: row.bio, colourHex: row.colour_hex, isActive: row.is_active, sortOrder: row.sort_order, serviceIds })
-const toAudit = value => ({ ...value })
 const rpcInput = value => ({ p_name: value.name, p_display_name: value.displayName, p_bio: value.bio,
   p_colour_hex: value.colourHex, p_is_active: value.isActive, p_sort_order: value.sortOrder, p_service_ids: value.serviceIds })
 const commandError = error => {
@@ -32,7 +31,6 @@ async function defaultLoadStaff(db, id) {
 export function createStaffDetailHandlers({
   adminContext: resolveContext = adminContext,
   guardMutationRequest: guardMutation = guardMutationRequest,
-  audit: writeAudit = audit,
   loadStaff = defaultLoadStaff,
   revalidatePath: revalidate = revalidatePath,
 } = {}) {
@@ -59,10 +57,9 @@ export function createStaffDetailHandlers({
       let before
       try { before = await loadStaff(context.db, id) } catch { return jsonError('Unable to load staff.', 500) }
       if (!before) return jsonError('Staff member not found.', 404)
-      const { data, error } = await context.db.rpc('admin_update_staff', { p_staff_id: id, ...rpcInput(parsed.value) })
+      const { data, error } = await context.db.rpc('admin_update_staff_audited', { p_actor_id: context.auth.user.id, p_staff_id: id, ...rpcInput(parsed.value) })
       if (error) return commandError(error)
       const staff = toStaff(data, parsed.value.serviceIds)
-      await writeAudit(context.db, context.auth.user, 'staff.update', 'staff', id, { before: toAudit(before), after: toAudit(parsed.value) })
       invalidate(revalidate)
       return NextResponse.json({ staff })
     },
@@ -76,9 +73,8 @@ export function createStaffDetailHandlers({
       let before
       try { before = await loadStaff(context.db, id) } catch { return jsonError('Unable to load staff.', 500) }
       if (!before) return jsonError('Staff member not found.', 404)
-      const { error } = await context.db.rpc('admin_delete_staff', { p_staff_id: id })
+      const { error } = await context.db.rpc('admin_delete_staff_audited', { p_actor_id: context.auth.user.id, p_staff_id: id })
       if (error) return commandError(error)
-      await writeAudit(context.db, context.auth.user, 'staff.delete', 'staff', id, { before: toAudit(before) })
       invalidate(revalidate)
       return NextResponse.json({ success: true })
     },

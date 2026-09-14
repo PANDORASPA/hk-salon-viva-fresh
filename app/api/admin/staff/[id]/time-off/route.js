@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server.js'
 import { revalidatePath } from 'next/cache.js'
-import { adminContext, audit, jsonError } from '../../../../../../lib/admin/salon-api.js'
+import { adminContext, jsonError } from '../../../../../../lib/admin/salon-api.js'
 import { guardMutationRequest } from '../../../../../../lib/security/request-guards.js'
 import { isPositiveSafeInteger, validateTimeOffInput } from '../../../../../../lib/validation/staff.js'
 
@@ -16,7 +16,6 @@ const commandError = error => {
 export function createStaffTimeOffHandlers({
   adminContext: resolveContext = adminContext,
   guardMutationRequest: guardMutation = guardMutationRequest,
-  audit: writeAudit = audit,
   revalidatePath: revalidate = revalidatePath,
 } = {}) {
   return {
@@ -37,13 +36,12 @@ export function createStaffTimeOffHandlers({
       const id = await parseId(routeContext)
       const parsed = validateTimeOffInput(await request.json().catch(() => null))
       if (!id || !parsed.ok) return jsonError('Invalid time off.', 400)
-      const { data, error } = await context.db.rpc('admin_create_staff_time_off', {
-        p_staff_id: id, p_starts_at: parsed.value.startsAt, p_ends_at: parsed.value.endsAt,
-        p_reason: parsed.value.reason, p_created_by: context.auth.user.id,
+      const { data, error } = await context.db.rpc('admin_create_staff_time_off_audited', {
+        p_actor_id: context.auth.user.id, p_staff_id: id, p_starts_at: parsed.value.startsAt, p_ends_at: parsed.value.endsAt,
+        p_reason: parsed.value.reason,
       })
       if (error) return commandError(error)
       const timeOff = toTimeOff(data)
-      await writeAudit(context.db, context.auth.user, 'staff.time_off.create', 'staff_time_off', data.id, { after: { staffId: id, ...parsed.value } })
       revalidate('/admin'); revalidate('/booking')
       return NextResponse.json({ timeOff }, { status: 201 })
     },
@@ -55,9 +53,8 @@ export function createStaffTimeOffHandlers({
       const id = await parseId(routeContext)
       const timeOffId = Number(new URL(request.url).searchParams.get('id'))
       if (!id || !isPositiveSafeInteger(timeOffId)) return jsonError('Invalid time off.', 400)
-      const { error } = await context.db.rpc('admin_delete_staff_time_off', { p_staff_id: id, p_time_off_id: timeOffId })
+      const { error } = await context.db.rpc('admin_delete_staff_time_off_audited', { p_actor_id: context.auth.user.id, p_staff_id: id, p_time_off_id: timeOffId })
       if (error) return commandError(error)
-      await writeAudit(context.db, context.auth.user, 'staff.time_off.delete', 'staff_time_off', timeOffId, { before: { staffId: id, id: timeOffId } })
       revalidate('/admin'); revalidate('/booking')
       return NextResponse.json({ success: true })
     },

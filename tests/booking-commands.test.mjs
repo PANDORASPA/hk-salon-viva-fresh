@@ -226,6 +226,26 @@ test('parallel route submissions consume the last package session once and leave
   assert.equal((await db.query('select count(*)::int as count from public.package_redemptions')).rows[0].count, 1)
 })
 
+test('booking rechecks an active staff row at write time after candidate selection', async t => {
+  // Mutation caught: an appointment committing after a concurrent deactivation
+  // changed the selected staff row between eligibility selection and INSERT.
+  const db = await bookingDatabase(t)
+  await db.exec(`create function public.deactivate_before_booking_insert() returns trigger language plpgsql as $$
+    begin update public.staff set is_active=false where id=new.staff_id; return new; end $$;
+    create trigger aaa_deactivate_before_booking_insert before insert on public.appointments
+      for each row execute function public.deactivate_before_booking_insert();`)
+  await assert.rejects(createSql(db, { p_staff_preference: '1' }), error => error.message === 'staff_unavailable')
+  assert.equal((await db.query('select count(*)::int as count from public.appointments')).rows[0].count, 0)
+  assert.equal((await db.query('select is_active from public.staff where id=1')).rows[0].is_active, true)
+  const { createAppointment } = await import('../lib/booking/commands.js')
+  await assert.rejects(createAppointment(rpcClient(db), {
+    serviceId: 1, staffPreference: 1, startsAt: await futureSlot(db, 4), customer: { name: 'Race Guest', phone: '91234567' },
+  }), error => error.code === 'slot_unavailable' && error.status === 409)
+  await db.exec('drop trigger aaa_deactivate_before_booking_insert on public.appointments; update public.staff set is_active=false where id=1')
+  await assert.rejects(db.query(`select * from public.create_salon_appointment(1,null,'Legacy Guest','91234567',null,$1::timestamptz,null)`,
+    [await futureSlot(db, 5)]), error => error.message === 'staff_unavailable')
+})
+
 test('wrapper stores only SHA-256 of a random 32-byte confirmation token and sanitizes errors/appointment', async t => {
   const db = await bookingDatabase(t)
   const { createAppointment, rescheduleAppointment, cancelAppointment } = await import('../lib/booking/commands.js')

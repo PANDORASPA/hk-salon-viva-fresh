@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { bookingDatabase, callSql, rpcClient, adminId, futureSlot } from './helpers/booking-database.mjs'
+import { bookingDatabase, callSql, rpcClient, adminId, otherId, futureSlot } from './helpers/booking-database.mjs'
 
 const staffInput = {
   name: '  Amy Chan  ',
@@ -103,8 +103,12 @@ test('staff command rejects deactivation with a future active appointment and br
   }
   await db.exec('set role service_role')
   try {
-    const serverCreated = await callSql(db, 'admin_create_staff', {
+    await assert.rejects(callSql(db, 'admin_create_staff', {
       p_name: 'Server Staff', p_display_name: 'Server', p_bio: null, p_colour_hex: '#112233',
+      p_is_active: true, p_sort_order: 0, p_service_ids: [1],
+    }), error => error.code === '42501')
+    const serverCreated = await callSql(db, 'admin_create_staff_audited', {
+      p_actor_id: adminId, p_name: 'Server Staff', p_display_name: 'Server', p_bio: null, p_colour_hex: '#112233',
       p_is_active: true, p_sort_order: 0, p_service_ids: [1],
     })
     assert.equal(serverCreated.display_name, 'Server')
@@ -132,11 +136,9 @@ test('admin route factories guard mutation, require admin context, persist an au
   })
   assert.equal((await denied.POST(request(staffInput))).status, 403)
 
-  const events = []
   const handler = createStaffHandlers({
     guardMutationRequest: async () => null,
     adminContext: async () => ({ db: rpcClient(db), auth: { user: { id: adminId } } }),
-    audit: async (_db, actor, action, table, id, metadata) => events.push({ actor: actor.id, action, table, id, metadata }),
     revalidatePath() {},
   })
   const created = await handler.POST(request({ ...staffInput, ignoredByServer: 'nope' }))
@@ -145,9 +147,9 @@ test('admin route factories guard mutation, require admin context, persist an au
   assert.equal(success.status, 201)
   const payload = await success.json()
   assert.equal(payload.staff.displayName, 'Amy')
-  assert.deepEqual(events, [{
-    actor: adminId, action: 'staff.create', table: 'staff', id: payload.staff.id,
-    metadata: { after: { name: 'Amy Chan', displayName: 'Amy', bio: 'Senior stylist', colourHex: '#a1b2c3', isActive: true, sortOrder: 3, serviceIds: [1, 2] } },
+  assert.deepEqual((await db.query(`select actor_id, action, target_table, target_id from public.admin_audit_logs
+    where action='staff.create' and target_id=$1`, [String(payload.staff.id)])).rows, [{
+    actor_id: adminId, action: 'staff.create', target_table: 'staff', target_id: String(payload.staff.id),
   }])
 })
 
@@ -157,10 +159,8 @@ test('detail, hours, and time-off route factories use the atomic commands with g
   const db = await bookingDatabase(t)
   const person = (await db.query('select * from public.staff where id=2')).rows[0]
   const context = async () => ({ db: rpcClient(db), auth: { user: { id: adminId } } })
-  const auditEvents = []
   const dependencies = {
     adminContext: context, guardMutationRequest: async () => null,
-    audit: async (_db, _actor, action, table, id, metadata) => auditEvents.push({ action, table, id, metadata }),
     loadStaff: async () => ({ ...person, serviceIds: [1] }), revalidatePath() {},
   }
   const params = { params: Promise.resolve({ id: '2' }) }
@@ -191,5 +191,59 @@ test('detail, hours, and time-off route factories use the atomic commands with g
   const timeOffId = (await created.json()).timeOff.id
   assert.equal((await timeOff.DELETE(request(`http://localhost/api/admin/staff/2/time-off?id=${timeOffId}`, 'DELETE'), params)).status, 200)
   assert.equal((await db.query('select count(*)::int as count from public.staff_time_off where id=$1', [timeOffId])).rows[0].count, 0)
-  assert.deepEqual(auditEvents.map(event => event.action), ['staff.update', 'staff.hours.replace', 'staff.time_off.create', 'staff.time_off.delete'])
+  assert.deepEqual((await db.query(`select action from public.admin_audit_logs where action=any($1::text[]) order by id`,
+    [['staff.update', 'staff.hours.replace', 'staff.time_off.create', 'staff.time_off.delete']])).rows,
+    [{ action: 'staff.update' }, { action: 'staff.hours.replace' }, { action: 'staff.time_off.create' }, { action: 'staff.time_off.delete' }])
+})
+
+test('audited staff command commits its audit row or rolls the staff mutation back', async t => {
+  // Mutation caught: reporting a staff write as successful after its separate
+  // audit insert fails, leaving an unauditable state change behind.
+  const db = await bookingDatabase(t)
+  const input = {
+    p_actor_id: adminId, p_name: 'Audited Staff', p_display_name: 'Audited', p_bio: null,
+    p_colour_hex: '#112233', p_is_active: true, p_sort_order: 9, p_service_ids: [1],
+  }
+  const created = await callSql(db, 'admin_create_staff_audited', input)
+  assert.equal(created.display_name, 'Audited')
+  assert.deepEqual((await db.query(`select actor_id, action, entity_type, target_table, target_id
+    from public.admin_audit_logs where action='staff.create' order by id desc limit 1`)).rows, [{
+    actor_id: adminId, action: 'staff.create', entity_type: 'staff', target_table: 'staff', target_id: String(created.id),
+  }])
+  const before = (await db.query('select count(*)::int as count from public.staff')).rows[0].count
+  await db.exec(`create function public.reject_staff_audit() returns trigger language plpgsql as $$
+    begin if new.action='staff.create' then raise exception 'audit_insert_failed'; end if; return new; end $$;
+    create trigger reject_staff_audit before insert on public.admin_audit_logs for each row execute function public.reject_staff_audit();`)
+  await assert.rejects(callSql(db, 'admin_create_staff_audited', { ...input, p_name: 'Must Roll Back', p_display_name: 'Rollback' }), /audit_insert_failed/)
+  assert.equal((await db.query('select count(*)::int as count from public.staff')).rows[0].count, before)
+  await db.exec('drop trigger reject_staff_audit on public.admin_audit_logs')
+  await assert.rejects(callSql(db, 'admin_create_staff_audited', { ...input, p_actor_id: otherId, p_name: 'Forged Actor', p_display_name: 'Forged' }),
+    error => error.message === 'admin_forbidden')
+  for (const role of ['anon', 'authenticated']) {
+    await db.exec(`set role ${role}`)
+    try { await assert.rejects(callSql(db, 'admin_create_staff_audited', input), error => error.code === '42501') }
+    finally { await db.exec('reset role') }
+  }
+  await db.exec('set role service_role')
+  try { assert.ok((await callSql(db, 'admin_create_staff_audited', { ...input, p_name: 'Server Audited', p_display_name: 'Server Audited' })).id) }
+  finally { await db.exec('reset role') }
+})
+
+test('staff create route reports success only after the database records its audit', async t => {
+  // Mutation caught: restoring a route-level best-effort audit call after the
+  // command already committed its staff mutation.
+  const db = await bookingDatabase(t)
+  const { createStaffHandlers } = await import('../app/api/admin/staff/route.js')
+  const handler = createStaffHandlers({
+    guardMutationRequest: async () => null,
+    adminContext: async () => ({ db: rpcClient(db), auth: { user: { id: adminId } } }),
+    revalidatePath() {},
+  })
+  const response = await handler.POST(new Request('http://localhost/api/admin/staff', {
+    method: 'POST', headers: { origin: 'http://localhost', 'content-type': 'application/json' }, body: JSON.stringify(staffInput),
+  }))
+  assert.equal(response.status, 201)
+  const staff = (await response.json()).staff
+  assert.deepEqual((await db.query(`select action, target_id from public.admin_audit_logs
+    where action='staff.create' and target_id=$1`, [String(staff.id)])).rows, [{ action: 'staff.create', target_id: String(staff.id) }])
 })

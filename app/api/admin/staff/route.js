@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server.js'
 import { revalidatePath } from 'next/cache.js'
-import { adminContext, audit, jsonError } from '../../../../lib/admin/salon-api.js'
+import { adminContext, jsonError } from '../../../../lib/admin/salon-api.js'
 import { guardMutationRequest } from '../../../../lib/security/request-guards.js'
 import { validateStaffInput } from '../../../../lib/validation/staff.js'
 
@@ -8,7 +8,6 @@ const rpcInput = value => ({
   p_name: value.name, p_display_name: value.displayName, p_bio: value.bio, p_colour_hex: value.colourHex,
   p_is_active: value.isActive, p_sort_order: value.sortOrder, p_service_ids: value.serviceIds,
 })
-const auditValue = value => ({ ...value })
 const toStaff = (row, serviceIds = []) => row && ({
   id: row.id, name: row.name, displayName: row.display_name, bio: row.bio, colourHex: row.colour_hex,
   isActive: row.is_active, sortOrder: row.sort_order, serviceIds,
@@ -26,7 +25,6 @@ const invalidateStaff = revalidate => {
 export function createStaffHandlers({
   adminContext: resolveContext = adminContext,
   guardMutationRequest: guardMutation = guardMutationRequest,
-  audit: writeAudit = audit,
   revalidatePath: revalidate = revalidatePath,
 } = {}) {
   return {
@@ -47,10 +45,9 @@ export function createStaffHandlers({
       const body = await request.json().catch(() => null)
       const parsed = validateStaffInput(body)
       if (!parsed.ok) return jsonError('Invalid staff.', 400)
-      const { data, error } = await context.db.rpc('admin_create_staff', rpcInput(parsed.value))
+      const { data, error } = await context.db.rpc('admin_create_staff_audited', { p_actor_id: context.auth.user.id, ...rpcInput(parsed.value) })
       if (error) return commandError(error)
       const staff = toStaff(data, parsed.value.serviceIds)
-      await writeAudit(context.db, context.auth.user, 'staff.create', 'staff', data.id, { after: auditValue(parsed.value) })
       invalidateStaff(revalidate)
       return NextResponse.json({ staff }, { status: 201 })
     },

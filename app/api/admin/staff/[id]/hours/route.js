@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server.js'
 import { revalidatePath } from 'next/cache.js'
-import { adminContext, audit, jsonError } from '../../../../../../lib/admin/salon-api.js'
+import { adminContext, jsonError } from '../../../../../../lib/admin/salon-api.js'
 import { guardMutationRequest } from '../../../../../../lib/security/request-guards.js'
 import { isPositiveSafeInteger, validateWeeklyHours } from '../../../../../../lib/validation/staff.js'
 
@@ -12,7 +12,6 @@ const dbHours = hours => hours.map(row => ({ weekday: row.weekday, isWorking: ro
 export function createStaffHoursHandlers({
   adminContext: resolveContext = adminContext,
   guardMutationRequest: guardMutation = guardMutationRequest,
-  audit: writeAudit = audit,
   revalidatePath: revalidate = revalidatePath,
 } = {}) {
   const replace = async (request, routeContext) => {
@@ -23,9 +22,8 @@ export function createStaffHoursHandlers({
     const id = await parseId(routeContext)
     const parsed = validateWeeklyHours((await request.json().catch(() => null))?.hours)
     if (!id || !parsed.ok) return jsonError('Invalid weekly hours.', 400)
-    const { data, error } = await context.db.rpc('admin_replace_staff_weekly_hours', { p_staff_id: id, p_hours: dbHours(parsed.value) })
+    const { data, error } = await context.db.rpc('admin_replace_staff_weekly_hours_audited', { p_actor_id: context.auth.user.id, p_staff_id: id, p_hours: dbHours(parsed.value) })
     if (error) return commandError(error)
-    await writeAudit(context.db, context.auth.user, 'staff.hours.replace', 'staff_weekly_hours', id, { after: parsed.value })
     revalidate('/admin'); revalidate('/booking')
     return NextResponse.json({ hours: data || parsed.value })
   }
