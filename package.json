@@ -12,6 +12,7 @@
     "test:e2e": "playwright test",
     "seed:e2e": "node scripts/seed-e2e.mjs seed",
     "cleanup:e2e": "node scripts/seed-e2e.mjs cleanup",
+    "start:e2e": "node scripts/start-e2e.mjs",
     "test": "npm run test:unit",
     "security:scan": "node scripts/security-scan.mjs"
   },

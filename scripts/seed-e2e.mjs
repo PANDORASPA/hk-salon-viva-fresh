@@ -9,13 +9,24 @@ const fixture = c => ({ service: c.namespace + ' 創意剪髮', staff: [c.namesp
 const ok = (r, m) => { if (r?.error) throw preflightFailure(m); return r?.data }
 const ids = rows => rows.map(row => row.id)
 const del = async (db, table, field, list, m) => { if (list.length) ok(await db.from(table).delete().in(field, list), m) }
+const cleanupNotifications = async (db, c, appointmentIds) => {
+  if (appointmentIds.length) ok(await db.rpc('e2e_cleanup_notifications', { p_marker: c.databaseMarker, p_appointment_ids: appointmentIds, p_namespace: c.namespace }), 'could not delete fixture notifications')
+}
 async function users(db, c) { const r = await db.auth.admin.listUsers({ page: 1, perPage: 1000 }); if (r.error) throw preflightFailure('could not list E2E identities'); return r.data.users.filter(u => [c.customerEmail, c.adminEmail].includes(u.email)) }
-const sameSnapshotTarget = (state, c) => state?.origin === c.supabaseUrl.origin && state?.marker === c.databaseMarker && state?.namespace === c.namespace && typeof state?.runId === 'string' && state.runId.length > 0
+const sameSnapshotTarget = (state, c) => state?.origin === c.supabaseUrl.origin && state?.marker === c.databaseMarker && state?.namespace === c.namespace
+export async function validateRuntimeSnapshot(c) {
+  const file = statePath(c)
+  if (!existsSync(file)) return null
+  const state = JSON.parse(await readFile(file, 'utf8'))
+  // Keep a foreign recovery file intact: it may be the only path to restore
+  // that database. Refuse before a delete, insert, or settings mutation.
+  if (!sameSnapshotTarget(state, c)) throw preflightFailure('runtime snapshot belongs to another E2E database or namespace')
+  return state
+}
 export async function restoreRuntimeState(db, c) {
   const file = statePath(c)
   if (!existsSync(file)) return
-  const state = JSON.parse(await readFile(file, 'utf8'))
-  if (!sameSnapshotTarget(state, c)) throw preflightFailure('runtime snapshot belongs to another E2E database or namespace')
+  const state = await validateRuntimeSnapshot(c)
   // Delete first so weekdays absent in the original snapshot remain absent after restoration.
   ok(await db.from('business_hours').delete().not('weekday', 'is', null), 'could not clear business hours')
   if (state.businessHours.length) ok(await db.from('business_hours').upsert(state.businessHours), 'could not restore business hours')
@@ -24,14 +35,10 @@ export async function restoreRuntimeState(db, c) {
 }
 export async function snapshotRuntimeState(db, c) {
   const file = statePath(c)
-  if (existsSync(file)) {
-    const stale = JSON.parse(await readFile(file, 'utf8'))
-    if (!sameSnapshotTarget(stale, c)) { await unlink(file); throw preflightFailure('stale runtime snapshot belongs to another E2E database or namespace') }
-    return
-  }
+  if (await validateRuntimeSnapshot(c)) return
   const businessHours = ok(await db.from('business_hours').select('weekday,is_open,opens_at,closes_at'), 'could not snapshot business hours')
   const settings = ok(await db.from('app_settings').select('data').eq('id', 1).single(), 'could not snapshot settings')
-  await writeFile(file, JSON.stringify({ origin: c.supabaseUrl.origin, marker: c.databaseMarker, namespace: c.namespace, runId: crypto.randomUUID(), businessHours, settings: settings.data }), { encoding: 'utf8', mode: 0o600 })
+  await writeFile(file, JSON.stringify({ origin: c.supabaseUrl.origin, marker: c.databaseMarker, namespace: c.namespace, businessHours, settings: settings.data }), { encoding: 'utf8', mode: 0o600 })
 }
 export async function withRestoration(mutate, restore) {
   try { return await mutate() } catch (mutationError) {
@@ -44,6 +51,7 @@ export async function withRestoration(mutate, restore) {
 }
 
 export async function cleanupE2EFixtures({ db, config, restoreState = true } = {}) {
+  await validateRuntimeSnapshot(config)
   let cleanupError
   try {
     const f = fixture(config), u = await users(db, config), userIds = u.map(x => x.id)
@@ -55,7 +63,7 @@ export async function cleanupE2EFixtures({ db, config, restoreState = true } = {
     const packageIds = ids(ok(await db.from('packages').select('id').eq('name', f.package), 'could not locate fixture package') || [])
     const customerPackageIds = customerIds.length ? ids(ok(await db.from('customer_packages').select('id').in('customer_id', customerIds), 'could not locate fixture packages') || []) : []
     // Notification and audit rows can contain fixture contact data. Both scopes are exact IDs.
-    await del(db, 'notifications', 'booking_id', appointmentIds, 'could not delete fixture notifications'); await del(db, 'package_usage_logs', 'appointment_id', appointmentIds, 'could not delete fixture usage logs'); await del(db, 'package_redemptions', 'appointment_id', appointmentIds, 'could not delete fixture redemptions'); await del(db, 'appointments', 'id', appointmentIds, 'could not delete fixture bookings'); await del(db, 'customer_packages', 'id', customerPackageIds, 'could not delete fixture packages'); await del(db, 'customers', 'id', customerIds, 'could not delete fixture customers'); await del(db, 'staff_time_off', 'staff_id', staffIds, 'could not delete fixture time off'); await del(db, 'staff_weekly_hours', 'staff_id', staffIds, 'could not delete fixture schedules'); await del(db, 'staff_services', 'staff_id', staffIds, 'could not delete fixture mappings'); await del(db, 'staff', 'id', staffIds, 'could not delete fixture staff'); await del(db, 'packages', 'id', packageIds, 'could not delete fixture package'); await del(db, 'services', 'id', serviceIds, 'could not delete fixture service')
+    await cleanupNotifications(db, config, appointmentIds); await del(db, 'package_usage_logs', 'appointment_id', appointmentIds, 'could not delete fixture usage logs'); await del(db, 'package_redemptions', 'appointment_id', appointmentIds, 'could not delete fixture redemptions'); await del(db, 'appointments', 'id', appointmentIds, 'could not delete fixture bookings'); await del(db, 'customer_packages', 'id', customerPackageIds, 'could not delete fixture packages'); await del(db, 'customers', 'id', customerIds, 'could not delete fixture customers'); await del(db, 'staff_time_off', 'staff_id', staffIds, 'could not delete fixture time off'); await del(db, 'staff_weekly_hours', 'staff_id', staffIds, 'could not delete fixture schedules'); await del(db, 'staff_services', 'staff_id', staffIds, 'could not delete fixture mappings'); await del(db, 'staff', 'id', staffIds, 'could not delete fixture staff'); await del(db, 'packages', 'id', packageIds, 'could not delete fixture package'); await del(db, 'services', 'id', serviceIds, 'could not delete fixture service')
     await del(db, 'admin_audit_logs', 'actor_user_id', userIds, 'could not delete fixture audit rows')
     for (const user of u) { await del(db, 'admin_users', 'user_id', [user.id], 'could not delete fixture admin'); if ((await db.auth.admin.deleteUser(user.id)).error) throw preflightFailure('could not delete fixture identity') }
   } catch (error) { cleanupError = error }
@@ -70,7 +78,7 @@ export async function cleanupE2EFixtures({ db, config, restoreState = true } = {
 async function bootstrap(db, c) { const admins = ok(await db.from('admin_users').select('user_id').eq('is_active', true), 'could not check bootstrap admin') || []; const existing = new Set((await users(db, c)).map(x => x.id)); if (!admins.some(x => !existing.has(x.user_id))) throw preflightFailure('a non-test active bootstrap administrator is required') }
 async function identity(db, email, password) { const found = (await db.auth.admin.listUsers({ page: 1, perPage: 1000 })).data?.users?.find(x => x.email === email); if (found) { ok(await db.auth.admin.updateUserById(found.id, { password, email_confirm: true }), 'could not update fixture identity'); return found.id }; return ok(await db.auth.admin.createUser({ email, password, email_confirm: true, user_metadata: { e2e: true } }), 'could not create fixture identity').user.id }
 export async function seedE2EFixtures({ db, config, settings } = {}) {
-  await cleanupE2EFixtures({ db, config, restoreState: false }); await bootstrap(db, config); await snapshotRuntimeState(db, config)
+  await validateRuntimeSnapshot(config); await cleanupE2EFixtures({ db, config, restoreState: false }); await bootstrap(db, config); await snapshotRuntimeState(db, config)
   return withRestoration(async () => {
   const f = fixture(config), customerUserId = await identity(db, config.customerEmail, config.password), adminUserId = await identity(db, config.adminEmail, config.password)
   ok(await db.from('profiles').upsert([{ id: customerUserId, full_name: f.customer, phone: '61234560' }, { id: adminUserId, full_name: config.namespace + ' admin', phone: '61234561' }]), 'could not create fixture profiles'); ok(await db.from('admin_users').upsert({ user_id: adminUserId, is_active: true }), 'could not create fixture admin')

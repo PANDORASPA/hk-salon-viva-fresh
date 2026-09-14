@@ -4,7 +4,7 @@ import { mkdtemp, readFile, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { canonicalE2EUrl, e2eConfig } from '../lib/e2e/runtime-preflight.mjs'
-import { restoreRuntimeState, snapshotRuntimeState, withRestoration } from '../scripts/seed-e2e.mjs'
+import { cleanupE2EFixtures, restoreRuntimeState, snapshotRuntimeState, withRestoration } from '../scripts/seed-e2e.mjs'
 
 const valid = {
   E2E_BASE_URL: 'http://127.0.0.1:3100',
@@ -24,15 +24,18 @@ test('E2E seed requires separate credentials and a database marker', () => {
   assert.deepEqual(e2eConfig(valid).namespace, 'e2e_booking_platform')
 })
 
-test('a mismatched snapshot is removed and prevents another project mutation', async () => {
+test('a project B cleanup preserves project A recovery state before any database mutation', async () => {
   const directory = await mkdtemp(join(tmpdir(), 'booking-e2e-'))
   const file = join(directory, 'runtime-state.json')
-  await writeFile(file, JSON.stringify({ origin: 'http://127.0.0.1:59999', marker: 'other', namespace: 'other' }))
+  const projectA = e2eConfig({ ...valid, E2E_SUPABASE_URL: 'http://127.0.0.1:59999', E2E_DATABASE_MARKER: 'project-a-marker' })
+  await writeFile(file, JSON.stringify({ origin: projectA.supabaseUrl.origin, marker: projectA.databaseMarker, namespace: projectA.namespace }))
+  const noMutation = { from: () => { throw new Error('project B database must not be touched') } }
   await assert.rejects(
-    snapshotRuntimeState({ from: () => { throw new Error('database must not be touched') } }, { ...e2eConfig(valid), runtimeStateFile: file }),
-    /stale runtime snapshot belongs to another E2E database or namespace/,
+    snapshotRuntimeState(noMutation, { ...e2eConfig(valid), runtimeStateFile: file }),
+    /runtime snapshot belongs to another E2E database or namespace/,
   )
-  await assert.rejects(readFile(file, 'utf8'), /ENOENT/)
+  await assert.rejects(cleanupE2EFixtures({ db: noMutation, config: { ...e2eConfig(valid), runtimeStateFile: file } }), /runtime snapshot belongs to another E2E database or namespace/)
+  assert.equal((await readFile(file, 'utf8')).includes('project-a-marker'), true)
 })
 
 test('restore clears every weekday before restoring only the original weekly-hours rows', async () => {

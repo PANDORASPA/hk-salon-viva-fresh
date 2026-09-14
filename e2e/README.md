@@ -25,8 +25,22 @@ SUPABASE_SERVICE_ROLE_KEY=<isolated-test-service-role-key>
 NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=<isolated-test-publishable-key>
 ```
 
-Start the app with the corresponding isolated NEXT_PUBLIC settings, then run
-the E2E command. Global setup verifies both the marked Supabase database and
+In one terminal, start the isolated development server with the same local file:
+
+```
+npm run start:e2e
+```
+
+This cross-platform launcher loads `.env.e2e.local`, requires the local
+loopback base URL, matching public/service Supabase settings, and
+`E2E_PROBE_ENABLED=1`; it runs `next dev`, never `next start`. In a second
+terminal, run:
+
+```
+npm run test:e2e
+```
+
+Global setup verifies both the marked Supabase database and
 the guarded /api/e2e probe before any browser navigation. It seeds once and
 global teardown removes fixtures and restores business hours/settings. The
 test dates are independent, so staff-hours changes cannot pollute concurrency.

@@ -66,9 +66,9 @@ credentials. The exact local setup and run order are in `e2e/README.md`.
   cleanup and reports both errors when cleanup also fails. Seed mutation work
   uses the same failure-unwind path, while cleanup restores business settings
   even when a prior fixture delete failed.
-- The snapshot must match the canonical Supabase origin, marker, namespace,
-  and non-empty run id. A mismatched stale local snapshot is removed and the
-  run is refused before a database mutation. Restoration clears all business
+- The snapshot must match the canonical Supabase origin, marker, and namespace.
+  A mismatched recovery snapshot is preserved and the run is refused before a
+  database mutation. Restoration clears all business
   hour rows before upserting the original rows, so originally absent weekdays
   remain absent; it cannot restore settings across database bindings.
 - Fixture audit records are deleted only by exact fixture actor-user IDs.
@@ -91,3 +91,34 @@ credentials. The exact local setup and run order are in `e2e/README.md`.
 - `npx playwright test --list`: 4 browser journeys discovered. The no-credential
   browser run deliberately stopped in global preflight with
   `E2E_TEST_PASSWORD is required`, before navigation or a database mutation.
+
+## Fix round 3
+
+- Added an additive migration with `e2e_cleanup_notifications`, a fixed-search-
+  path, security-definer capability. It requires the exact marker, a non-empty
+  distinct list of appointment IDs, and fixture namespace ownership before it
+  deletes notification rows. Browser roles have no execute grant; `service_role`
+  retains no broad table DELETE privilege. The seed calls this RPC before
+  deleting fixture appointments, so private contact content is removed.
+- A foreign recovery snapshot is now preserved and causes refusal before any
+  cleanup, seed, settings change, or other database mutation. Snapshot binding
+  is limited to the meaningful canonical origin, marker, and namespace; the
+  unused run-id claim was removed.
+- Added `npm run start:e2e`, a cross-platform Node launcher that loads the local
+  E2E environment, requires loopback `E2E_BASE_URL`, matching Supabase runtime
+  settings and the explicit probe flag, then runs `next dev` without a shell or
+  a production-style `next start` command.
+
+## Round 3 verification
+
+- PGlite full-migration security proof and focused E2E safety checks: 17 passed
+  in the combined run; the notification-specific rerun passed 9 focused tests.
+  It proves direct service-role notification DELETE remains denied, the scoped
+  RPC removes only exact fixture notification rows, and bad marker/ID scopes
+  and browser invocation leave collateral rows intact.
+- Full unit suite: 287 passed, 0 failed.
+- `npm run build`: succeeded; pre-existing optional `resend`/`stripe` and custom
+  Cache-Control warnings remain unchanged.
+- Playwright lists 4 journeys. Both `npm run start:e2e` and `npm run test:e2e`
+  deliberately refuse without credentials, before server startup/navigation or
+  a database mutation.
