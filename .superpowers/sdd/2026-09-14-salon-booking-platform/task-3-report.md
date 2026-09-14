@@ -53,3 +53,34 @@ The repository prints existing Node `MODULE_TYPELESS_PACKAGE_JSON` warnings for 
 - Candidate intervals include service duration plus buffer and use half-open overlap comparisons, so exact boundary adjacency remains available.
 - Single-day service behavior is enforced by requiring the complete duration plus buffer to fit within the intersected same-day shop/staff window; no next-day slot is emitted.
 - A future refinement could add a project-wide `type: module` declaration to remove existing Node warnings, but it is outside this task and could affect legacy imports.
+
+## Fix Round 1
+
+Addressed review findings:
+
+- Staff without an explicit service mapping are now unqualified (including empty mappings).
+- `buildStaffAvailability` now requires a valid injected `now`; invalid/missing clocks deterministically return `{ slots: [], staffAvailability }` with no slots. `validateBookingWindow` already returns `{ ok: false, code: 'booking_window_invalid' }` for the same condition.
+- Added real behavior coverage for all active appointment statuses, cancelled/no-show behavior, buffer and time-off boundary adjacency, defaults, absent mappings, invalid clocks, and build-time lead/horizon filtering.
+
+### Fix-round RED
+
+Command:
+
+```text
+node --test tests/availability-v2.test.mjs
+```
+
+Result: 16 tests ran, 13 passed and 3 failed. The failures captured the two production regressions (absent mapping qualified staff; invalid availability clock admitted slots) plus one hand-derived default expectation that was corrected to the actual 30-minute-step/15-minute-buffer boundary.
+
+### Fix-round GREEN
+
+Commands:
+
+```text
+node --test tests/availability-v2.test.mjs
+npm run test:unit
+```
+
+Results: focused suite 16 passed, 0 failed; full unit suite 139 passed, 0 failed, 0 skipped.
+
+Commit: `fix: harden availability qualification and clock handling`.

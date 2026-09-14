@@ -53,3 +53,87 @@ test('enforces booking lead time and maximum horizon', () => {
   assert.equal(validateBookingWindow({ startsAt: '2026-09-14T12:00:00+08:00', now, minimumLeadMinutes: 120, maximumAdvanceDays: 90 }).ok, true)
   assert.equal(validateBookingWindow({ startsAt: '2026-12-14T10:00:00+08:00', now, minimumLeadMinutes: 0, maximumAdvanceDays: 90 }).ok, false)
 })
+
+const simpleFixture = (overrides = {}) => ({
+  date: '2026-09-16', now,
+  service: { id: 7, duration_minutes: 30 },
+  staff: [{ id: 1, is_active: true, service_ids: [7] }],
+  weeklyHours: [{ staff_id: 1, weekday: 3, is_working: true, starts_at: '10:00', ends_at: '12:00' }],
+  businessHours: { weekday: 3, is_open: true, opens_at: '10:00', closes_at: '12:00' },
+  settings: { stepMinutes: 15, bufferMinutes: 15 },
+  ...overrides,
+})
+
+for (const status of ['pending', 'confirmed', 'completed']) {
+  test(`blocks an appointment with active status ${status}`, () => {
+    const result = buildStaffAvailability(simpleFixture({
+      appointments: [{ staff_id: 1, status, starts_at: '2026-09-16T10:00:00+08:00', occupied_until: '2026-09-16T10:45:00+08:00' }],
+    }))
+    assert.equal(result.staffAvailability['1'].includes('2026-09-16T10:00:00+08:00'), false)
+  })
+}
+
+for (const status of ['cancelled', 'no_show']) {
+  test(`does not block an appointment with non-active status ${status}`, () => {
+    const result = buildStaffAvailability(simpleFixture({
+      appointments: [{ staff_id: 1, status, starts_at: '2026-09-16T10:00:00+08:00', occupied_until: '2026-09-16T10:45:00+08:00' }],
+    }))
+    assert.equal(result.staffAvailability['1'].includes('2026-09-16T10:00:00+08:00'), true)
+  })
+}
+
+test('allows exact buffer-boundary adjacency', () => {
+  const result = buildStaffAvailability(simpleFixture({
+    appointments: [{ staff_id: 1, status: 'confirmed', starts_at: '2026-09-16T10:00:00+08:00', occupied_until: '2026-09-16T10:45:00+08:00' }],
+  }))
+  assert.equal(result.staffAvailability['1'].includes('2026-09-16T10:45:00+08:00'), true)
+})
+
+test('allows exact time-off-boundary adjacency', () => {
+  const result = buildStaffAvailability(simpleFixture({
+    timeOff: [{ staff_id: 1, starts_at: '2026-09-16T10:45:00+08:00', ends_at: '2026-09-16T11:00:00+08:00' }],
+  }))
+  assert.equal(result.staffAvailability['1'].includes('2026-09-16T10:00:00+08:00'), true)
+})
+
+test('applies default step and buffer settings', () => {
+  const result = buildStaffAvailability(simpleFixture({ settings: undefined }))
+  assert.deepEqual(result.staffAvailability['1'], [
+    '2026-09-16T10:00:00+08:00',
+    '2026-09-16T10:30:00+08:00',
+    '2026-09-16T11:00:00+08:00',
+  ])
+})
+
+test('does not qualify staff with absent service mapping', () => {
+  const result = buildStaffAvailability(simpleFixture({ staff: [{ id: 1, is_active: true }] }))
+  assert.deepEqual(result.slots, [])
+  assert.deepEqual(result.staffAvailability['1'], [])
+})
+
+test('rejects an invalid injected now for availability', () => {
+  const result = buildStaffAvailability(simpleFixture({ now: 'not-a-date' }))
+  assert.deepEqual(result, { slots: [], staffAvailability: { '1': [] } })
+})
+
+test('rejects an invalid injected now for booking-window validation', () => {
+  assert.deepEqual(validateBookingWindow({ startsAt: '2026-09-16T10:00:00+08:00', now: 'not-a-date' }), {
+    ok: false, code: 'booking_window_invalid',
+  })
+})
+
+test('enforces lead time and horizon while building availability', () => {
+  assert.deepEqual(buildStaffAvailability(simpleFixture({
+    date: '2026-09-14', now: '2026-09-14T10:00:00+08:00',
+    weeklyHours: [{ staff_id: 1, weekday: 1, is_working: true, starts_at: '10:00', ends_at: '14:00' }],
+    businessHours: { weekday: 1, is_open: true, opens_at: '10:00', closes_at: '14:00' },
+  })).staffAvailability['1'], [
+    '2026-09-14T12:00:00+08:00', '2026-09-14T12:15:00+08:00', '2026-09-14T12:30:00+08:00',
+    '2026-09-14T12:45:00+08:00', '2026-09-14T13:00:00+08:00', '2026-09-14T13:15:00+08:00',
+  ])
+  assert.deepEqual(buildStaffAvailability(simpleFixture({
+    date: '2026-12-14', now,
+    weeklyHours: [{ staff_id: 1, weekday: 1, is_working: true, starts_at: '10:00', ends_at: '14:00' }],
+    businessHours: { weekday: 1, is_open: true, opens_at: '10:00', closes_at: '14:00' },
+  })).slots, [])
+})
