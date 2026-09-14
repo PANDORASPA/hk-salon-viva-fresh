@@ -1,8 +1,12 @@
-import { NextResponse } from 'next/server'
-import { getServiceClient } from '../../../lib/supabase/service'
-import { guardMutationRequest } from '../../../lib/security/request-guards'
-import { applyRedemption, isCustomerPackageUsable } from '../../../lib/booking/package-usage'
-import { sendBookingNotification } from '../../../lib/notifications/notify'
+import { NextResponse } from 'next/server.js'
+import { getServiceClient } from '../../../lib/supabase/service.js'
+import { guardMutationRequest } from '../../../lib/security/request-guards.js'
+import { applyRedemption, isCustomerPackageUsable } from '../../../lib/booking/package-usage.js'
+import { sendBookingNotification } from '../../../lib/notifications/notify.js'
+let routeDependencies = { getServiceClient }
+export function __setAppointmentsRouteDependencies(overrides = {}) {
+  routeDependencies = { getServiceClient, ...overrides }
+}
 
 export async function POST(request) {
   const guard = await guardMutationRequest(request, { rateLimit: { scope: 'booking', limit: 10, windowMs: 3_600_000 } })
@@ -21,7 +25,7 @@ export async function POST(request) {
     return NextResponse.json({ error: 'Invalid or past booking time.' }, { status: 400 })
   }
 
-  const db = getServiceClient()
+  const db = routeDependencies.getServiceClient()
 
   // Get service duration
   const { data: svc } = await db.from('services').select('duration_minutes').eq('id', Number(serviceId)).single()

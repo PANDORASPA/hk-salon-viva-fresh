@@ -1,10 +1,14 @@
-import { NextResponse } from 'next/server'
-import { getServerClient } from '../../../../../lib/supabase/server'
-import { getServiceClient } from '../../../../../lib/supabase/service'
-import { guardMutationRequest } from '../../../../../lib/security/request-guards'
-import { reverseRedemption, applyRedemption } from '../../../../../lib/booking/package-usage'
-import { sendBookingNotification } from '../../../../../lib/notifications/notify'
-import { readAppSettings } from '../../../../../lib/settings/app-settings'
+import { NextResponse } from 'next/server.js'
+import { getServerClient } from '../../../../../lib/supabase/server.js'
+import { getServiceClient } from '../../../../../lib/supabase/service.js'
+import { guardMutationRequest } from '../../../../../lib/security/request-guards.js'
+import { reverseRedemption, applyRedemption } from '../../../../../lib/booking/package-usage.js'
+import { sendBookingNotification } from '../../../../../lib/notifications/notify.js'
+import { readAppSettings } from '../../../../../lib/settings/app-settings.js'
+let routeDependencies = { getServerClient, getServiceClient }
+export function __setAccountBookingRouteDependencies(overrides = {}) {
+  routeDependencies = { getServerClient, getServiceClient, ...overrides }
+}
 
 /**
  * GET /api/account/bookings/[id] — read a single booking, scoped to the
@@ -16,7 +20,7 @@ export async function GET(_request, { params }) {
   if (!Number.isSafeInteger(id) || id <= 0) {
     return NextResponse.json({ error: 'Invalid booking id.' }, { status: 400 })
   }
-  const db = await getServerClient()
+  const db = await routeDependencies.getServerClient()
   const { data: { user } } = await db.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
@@ -75,11 +79,11 @@ export async function PATCH(request, { params }) {
 
   // Use the user-scoped client for ownership check, then the service client
   // for the actual write (server-side with RLS bypass).
-  const userDb = await getServerClient()
+  const userDb = await routeDependencies.getServerClient()
   const { data: { user } } = await userDb.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const db = getServiceClient()
+  const db = routeDependencies.getServiceClient()
   const { data: existing, error: exErr } = await db
     .from('appointments')
     .select('id, user_id, customer_id, service_id, customer_package_id, status, starts_at, ends_at')
@@ -176,11 +180,11 @@ export async function DELETE(request, { params }) {
     return NextResponse.json({ error: 'Invalid booking id.' }, { status: 400 })
   }
 
-  const userDb = await getServerClient()
+  const userDb = await routeDependencies.getServerClient()
   const { data: { user } } = await userDb.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const db = getServiceClient()
+  const db = routeDependencies.getServiceClient()
   const { data: existing, error: exErr } = await db
     .from('appointments')
     .select('id, user_id, customer_id, customer_package_id, status, starts_at')

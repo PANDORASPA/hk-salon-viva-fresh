@@ -1,12 +1,16 @@
-import { NextResponse } from 'next/server'
-import availabilityModule from '../../../lib/booking/salon-availability'
-import { getServiceClient } from '../../../lib/supabase/service'
+import { NextResponse } from 'next/server.js'
+import availabilityModule from '../../../lib/booking/salon-availability.js'
+import { getServiceClient } from '../../../lib/supabase/service.js'
 const { buildAvailability, hkDateWindow } = availabilityModule
+let routeDependencies = { getServiceClient }
+export function __setAvailabilityRouteDependencies(overrides = {}) {
+  routeDependencies = { getServiceClient, ...overrides }
+}
 
 export async function GET(request) {
   const { searchParams } = new URL(request.url), date = searchParams.get('date'), serviceId = Number(searchParams.get('serviceId'))
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date || '') || !Number.isSafeInteger(serviceId) || serviceId < 1) return NextResponse.json({ error:'Invalid date or service.' },{ status:400 })
-  const db = getServiceClient(), weekday = new Date(`${date}T12:00:00+08:00`).getUTCDay(), window=hkDateWindow(date)
+  const db = routeDependencies.getServiceClient(), weekday = new Date(`${date}T12:00:00+08:00`).getUTCDay(), window=hkDateWindow(date)
   const [serviceRes,hoursRes,blockRes,appointmentsRes] = await Promise.all([
     db.from('services').select('duration_minutes').eq('id',serviceId).eq('published',true).maybeSingle(),
     db.from('business_hours').select('*').eq('weekday',weekday).maybeSingle(),
