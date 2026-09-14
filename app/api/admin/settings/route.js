@@ -32,18 +32,8 @@ export async function PATCH(request) {
   }
   const merged = mergeSettings(incoming)
 
-  const { data, error } = await context.db
-    .from('app_settings')
-    .update({
-      data: merged,
-      updated_by: context.auth.user.id,
-      updated_at: new Date().toISOString(),
-    })
-    .eq('id', 1)
-    .select('data, updated_at, updated_by')
-    .single()
+  const { data, error } = await context.db.rpc('admin_save_settings', { p_actor_id: context.auth.user.id, p_data: merged })
 
   if (error) return jsonError(error)
-  await audit(context.db, context.auth.user, 'app-settings.update', 'app_settings', 1, { keys: Object.keys(merged) })
   return NextResponse.json({ settings: mergeSettings(data?.data) })
 }

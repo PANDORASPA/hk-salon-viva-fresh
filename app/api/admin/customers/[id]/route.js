@@ -5,7 +5,8 @@ import { guardMutationRequest } from '../../../../../lib/security/request-guards
 export async function GET(request, { params }) {
   const ctx = await adminContext()
   if (ctx.response) return ctx.response
-  const id = Number(params.id)
+  const { id: rawId } = await params
+  const id = Number(rawId)
   if (!Number.isSafeInteger(id)) return jsonError('Invalid ID', 400)
   const { data, error } = await ctx.db
     .from('customers')
@@ -21,7 +22,8 @@ export async function PATCH(request, { params }) {
   if (guard) return guard
   const ctx = await adminContext()
   if (ctx.response) return ctx.response
-  const id = Number(params.id)
+  const { id: rawId } = await params
+  const id = Number(rawId)
   if (!Number.isSafeInteger(id)) return jsonError('Invalid ID', 400)
   const body = await request.json()
   const { name, phone, email, notes } = body
@@ -42,7 +44,8 @@ export async function DELETE(request, { params }) {
   if (guard) return guard
   const ctx = await adminContext()
   if (ctx.response) return ctx.response
-  const id = Number(params.id)
+  const { id: rawId } = await params
+  const id = Number(rawId)
   if (!Number.isSafeInteger(id)) return jsonError('Invalid ID', 400)
   const { error } = await ctx.db.from('customers').delete().eq('id', id)
   if (error) return jsonError(error)

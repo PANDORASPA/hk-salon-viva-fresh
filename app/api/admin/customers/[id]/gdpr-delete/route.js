@@ -20,7 +20,8 @@ import { adminContext, audit, jsonError } from '../../../../../../lib/admin/salo
 export async function POST(_request, { params }) {
   const ctx = await adminContext()
   if (ctx.response) return ctx.response
-  const id = Number(params.id)
+  const { id: rawId } = await params
+  const id = Number(rawId)
   if (!Number.isSafeInteger(id) || id <= 0) return jsonError('Invalid ID', 400)
 
   const db = ctx.db

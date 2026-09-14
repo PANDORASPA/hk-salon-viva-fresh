@@ -5,7 +5,8 @@ import { guardMutationRequest } from '../../../../../lib/security/request-guards
 export async function GET(request, { params }) {
   const ctx = await adminContext()
   if (ctx.response) return ctx.response
-  const id = Number(params.id)
+  const { id: rawId } = await params
+  const id = Number(rawId)
   if (!Number.isSafeInteger(id)) return jsonError('Invalid ID', 400)
   const { data, error } = await ctx.db
     .from('packages')
@@ -21,15 +22,13 @@ export async function PATCH(request, { params }) {
   if (guard) return guard
   const ctx = await adminContext()
   if (ctx.response) return ctx.response
-  const id = Number(params.id)
+  const { id: rawId } = await params
+  const id = Number(rawId)
   if (!Number.isSafeInteger(id)) return jsonError('Invalid ID', 400)
   const body = await request.json()
-  const allowed = ['name', 'colour_hex', 'description', 'total_sessions', 'validity_days', 'price_hkd', 'is_active']
-  const update = {}
-  for (const key of allowed) if (body[key] !== undefined) update[key] = body[key]
-  const { data, error } = await ctx.db.from('packages').update(update).eq('id', id).select().single()
-  if (error) return jsonError(error)
-  await audit(ctx.db, ctx.auth.user, 'package.update', 'packages', id)
+  const serviceIds = Array.isArray(body.serviceIds) ? body.serviceIds.map(Number) : []
+  const { data, error } = await ctx.db.rpc('admin_save_package', { p_actor_id: ctx.auth.user.id, p_package_id: id, p_name: String(body.name || '').trim(), p_colour_hex: String(body.colour_hex || '#a98152'), p_description: String(body.description || ''), p_total_sessions: Number(body.total_sessions), p_validity_days: Number(body.validity_days), p_price_hkd: Number(body.price_hkd), p_service_ids: serviceIds })
+  if (error) return jsonError(error, 400)
   return NextResponse.json({ package: data })
 }
 
@@ -38,7 +37,8 @@ export async function DELETE(request, { params }) {
   if (guard) return guard
   const ctx = await adminContext()
   if (ctx.response) return ctx.response
-  const id = Number(params.id)
+  const { id: rawId } = await params
+  const id = Number(rawId)
   if (!Number.isSafeInteger(id)) return jsonError('Invalid ID', 400)
   const { error } = await ctx.db.from('packages').delete().eq('id', id)
   if (error) return jsonError(error)

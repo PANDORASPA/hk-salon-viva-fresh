@@ -6,7 +6,8 @@ import { applyPackageAdjustment } from '../../../../../lib/admin/package-adjustm
 export async function GET(request, { params }) {
   const ctx = await adminContext()
   if (ctx.response) return ctx.response
-  const id = Number(params.id)
+  const { id: rawId } = await params
+  const id = Number(rawId)
   if (!Number.isSafeInteger(id)) return jsonError('Invalid ID', 400)
   const { data, error } = await ctx.db
     .from('customer_packages')
@@ -22,7 +23,8 @@ export async function PATCH(request, { params }) {
   if (guard) return guard
   const ctx = await adminContext()
   if (ctx.response) return ctx.response
-  const id = Number(params.id)
+  const { id: rawId } = await params
+  const id = Number(rawId)
   if (!Number.isSafeInteger(id)) return jsonError('Invalid ID', 400)
   const body = await request.json()
   if (body.adjustment !== undefined || body.reason !== undefined) {
@@ -33,9 +35,9 @@ export async function PATCH(request, { params }) {
       return jsonError(error, 400)
     }
   }
-  const { sessions_remaining, is_active, expires_at } = body
+  if (body.sessions_remaining !== undefined) return jsonError('餘額調整必須填寫原因。', 400)
+  const { is_active, expires_at } = body
   const update = {}
-  if (sessions_remaining !== undefined) update.sessions_remaining = Number(sessions_remaining)
   if (is_active !== undefined) update.is_active = Boolean(is_active)
   if (expires_at !== undefined) update.expires_at = expires_at
   const { data, error } = await ctx.db.from('customer_packages').update(update).eq('id', id).select().single()
@@ -49,7 +51,8 @@ export async function DELETE(request, { params }) {
   if (guard) return guard
   const ctx = await adminContext()
   if (ctx.response) return ctx.response
-  const id = Number(params.id)
+  const { id: rawId } = await params
+  const id = Number(rawId)
   if (!Number.isSafeInteger(id)) return jsonError('Invalid ID', 400)
   const { error } = await ctx.db.from('customer_packages').delete().eq('id', id)
   if (error) return jsonError(error)
