@@ -12,9 +12,8 @@ const foundation = await readFile(new URL(foundationFile, migrations), 'utf8');
 const adminId = '00000000-0000-0000-0000-000000000001';
 const memberId = '00000000-0000-0000-0000-000000000002';
 
-// Runs the actual predecessor migrations except the broken package RPC migration.
-// Supabase-owned auth/storage infrastructure has a minimal fixture. Historical
-// package RPC replay has unrelated return-type/order defects (see task report).
+// Runs every actual predecessor migration. Supabase-owned auth/storage
+// infrastructure has a minimal fixture; Task 5 repaired historical RPC replay.
 async function database(t, legacyDefaults = false) {
   const db = new PGlite({ extensions: { btree_gist, pgcrypto } });
   t.after(() => db.close());
@@ -29,7 +28,7 @@ async function database(t, legacyDefaults = false) {
       file_size_limit bigint, allowed_mime_types text[]);
     create table storage.objects (id uuid primary key, bucket_id text);
   `);
-  for (const file of files.filter(file => file < foundationFile && !file.endsWith('_package_redeem_rpc.sql'))) {
+  for (const file of files.filter(file => file < foundationFile)) {
     await db.exec(await readFile(new URL(file, migrations), 'utf8'));
   }
   await db.exec(`

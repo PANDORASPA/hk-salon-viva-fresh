@@ -16,6 +16,7 @@ test('canonical booking routes query appointments, not legacy bookings, at runti
     import('../app/api/account/bookings/[id]/route.js'),
   ])
   const tables = []
+  const commands = []
   const query = (table) => {
     const value = table === 'services' ? { duration_minutes: 60 } : table === 'business_hours'
       ? { is_open: true, opens_at: '10:00', closes_at: '18:00' } : table === 'appointments'
@@ -23,7 +24,13 @@ test('canonical booking routes query appointments, not legacy bookings, at runti
     const chain = { select() { return this }, eq() { return this }, neq() { return this }, gte() { return this }, lt() { return this }, lte() { return this }, limit() { return this }, insert() { return this }, single: async () => ({ data: value, error: null }), maybeSingle: async () => ({ data: value, error: null }) }
     return chain
   }
-  const db = { from(table) { tables.push(table); return query(table) } }
+  const db = { from(table) { tables.push(table); return query(table) }, async rpc(name, input) {
+    commands.push(name)
+    assert.equal(name, 'create_appointment_v2')
+    assert.equal(input.p_service_id, 1)
+    assert.equal(input.p_customer_id, null)
+    return { data: { id: 99, service_id: input.p_service_id, staff_id: 1, starts_at: input.p_starts_at, status: 'pending' }, error: null }
+  } }
   const userDb = { auth: { getUser: async () => ({ data: { user: { id: 'user-1' } } }) }, from(table) { tables.push(table); return query(table) } }
   availabilityRoute.__setAvailabilityRouteDependencies({ getServiceClient: () => db })
   appointmentsRoute.__setAppointmentsRouteDependencies({ getServiceClient: () => db })
@@ -39,6 +46,7 @@ test('canonical booking routes query appointments, not legacy bookings, at runti
   assert.equal(appointment.status, 201)
   const account = await accountRoute.GET(new Request('http://localhost/api/account/bookings/99'), { params: { id: '99' } })
   assert.equal(account.status, 200)
-  assert.equal(tables.filter((table) => table === 'appointments').length >= 3, true, 'all canonical route handlers must query appointments')
+  assert.equal(tables.filter((table) => table === 'appointments').length >= 2, true, 'availability and account read the canonical appointment table')
+  assert.deepEqual(commands, ['create_appointment_v2'], 'creation uses the atomic appointment command')
   assert.equal(tables.includes('bookings'), false, 'canonical booking routes must never query bookings')
 })

@@ -1,108 +1,50 @@
-import { NextResponse } from 'next/server.js'
 import { getServiceClient } from '../../../lib/supabase/service.js'
 import { guardMutationRequest } from '../../../lib/security/request-guards.js'
-import { applyRedemption, isCustomerPackageUsable } from '../../../lib/booking/package-usage.js'
+import { BookingCommandError, bookingCommandResponse, createAppointment } from '../../../lib/booking/commands.js'
 import { sendBookingNotification } from '../../../lib/notifications/notify.js'
+
+export function createAppointmentsHandler({
+  getServiceClient: serviceClient = getServiceClient,
+  // Task 6 supplies the auth-bound resolver. Until then guests can book and
+  // package use fails closed. Request customerId is never an identity source.
+  resolveCustomer = async () => null,
+  notify = sendBookingNotification,
+} = {}) {
+  return async function appointmentsHandler(request) {
+    const guard = await guardMutationRequest(request, { rateLimit: { scope: 'booking', limit: 10, windowMs: 3_600_000 } })
+    if (guard) return guard
+    try {
+      const body = await request.json().catch(() => { throw new BookingCommandError('validation_error') })
+      if (!body || typeof body !== 'object' || Array.isArray(body)) throw new BookingCommandError('validation_error')
+      const context = await resolveCustomer(request)
+      const authenticatedCustomer = context?.customer || null
+      const actorUserId = context?.actorUserId || null
+      if (body.customerPackageId != null && !actorUserId) throw new BookingCommandError('authentication_required')
+      const db = await serviceClient()
+      // The RPC rechecks availability and rejects invalid or past booking time
+      // under the same transaction as staff assignment and package redemption.
+      const result = await createAppointment(db, {
+        serviceId: body.serviceId,
+        staffPreference: body.staffPreference ?? body.staffId,
+        startsAt: body.startsAt,
+        customer: authenticatedCustomer || { name: body.customerName, phone: body.customerPhone, email: body.customerEmail },
+        actorUserId,
+        customerPackageId: body.customerPackageId ?? null,
+        source: actorUserId ? 'account' : 'web',
+        notes: body.notes,
+      })
+      try { await notify({ event: 'booking_confirmation', booking: result.appointment }) }
+      catch { /* Notification delivery is independent of the committed booking. */ }
+      return Response.json(result, { status: 201 })
+    } catch (error) { return bookingCommandResponse(error) }
+  }
+}
+
 let routeDependencies = { getServiceClient }
 export function __setAppointmentsRouteDependencies(overrides = {}) {
   routeDependencies = { getServiceClient, ...overrides }
 }
 
 export async function POST(request) {
-  const guard = await guardMutationRequest(request, { rateLimit: { scope: 'booking', limit: 10, windowMs: 3_600_000 } })
-  if (guard) return guard
-  const body = await request.json()
-  const { serviceId, customerName, customerPhone, customerEmail, startsAt, customerId, customerPackageId } = body
-
-  if (!serviceId || !customerName?.trim() || !customerPhone?.trim() || !startsAt) {
-    return NextResponse.json({ error: 'Missing required fields.' }, { status: 400 })
-  }
-  if (!Number.isSafeInteger(Number(serviceId))) {
-    return NextResponse.json({ error: 'Invalid service.' }, { status: 400 })
-  }
-  const start = new Date(startsAt)
-  if (Number.isNaN(start.getTime()) || start <= new Date()) {
-    return NextResponse.json({ error: 'Invalid or past booking time.' }, { status: 400 })
-  }
-
-  const db = routeDependencies.getServiceClient()
-
-  // Get service duration
-  const { data: svc } = await db.from('services').select('duration_minutes').eq('id', Number(serviceId)).single()
-  if (!svc) {
-    return NextResponse.json({ error: 'Service not found.' }, { status: 404 })
-  }
-  const duration = Number(svc.duration_minutes) || 60
-  const endsAt = new Date(start.getTime() + duration * 60_000)
-
-  // If customerPackageId, validate it (defence in depth — UI filters but we must not trust it)
-  if (customerPackageId) {
-    if (!Number.isSafeInteger(Number(customerPackageId))) {
-      return NextResponse.json({ error: 'Invalid package id.' }, { status: 400 })
-    }
-    const { data: cp } = await db
-      .from('customer_packages')
-      .select('id, sessions_remaining, is_active, expires_at, customer_id')
-      .eq('id', Number(customerPackageId))
-      .single()
-    if (!cp) {
-      return NextResponse.json({ error: 'Package not found.' }, { status: 400 })
-    }
-    if (customerId && cp.customer_id && Number(cp.customer_id) !== Number(customerId)) {
-      return NextResponse.json({ error: 'This package does not belong to the specified customer.' }, { status: 403 })
-    }
-    if (!isCustomerPackageUsable(cp)) {
-      return NextResponse.json({ error: 'This package has no remaining sessions or has expired.' }, { status: 400 })
-    }
-  }
-
-  // Create appointment
-  const { data: apt, error: aptErr } = await db.from('appointments').insert({
-    user_id: null,
-    service_id: Number(serviceId),
-    customer_id: customerId ? Number(customerId) : null,
-    customer_package_id: customerPackageId ? Number(customerPackageId) : null,
-    customer_name: customerName.trim(),
-    customer_phone: customerPhone.trim(),
-    customer_email: customerEmail?.trim() || null,
-    starts_at: start.toISOString(),
-    ends_at: endsAt.toISOString(),
-    status: 'pending',
-  }).select().single()
-
-  if (aptErr) {
-    return NextResponse.json({ error: aptErr.message }, { status: 500 })
-  }
-
-  // Atomic redemption via lib/booking/package-usage (RPC with legacy fallback)
-  if (customerPackageId) {
-    const result = await applyRedemption(db, {
-      customerPackageId: Number(customerPackageId),
-      appointmentId: apt.id,
-    })
-    if (!result.ok) {
-      // Roll back the appointment we just inserted
-      await db.from('appointments').delete().eq('id', apt.id)
-      const reason = result.reason || 'redemption_failed'
-      const message =
-        reason === 'not_usable' ? 'This package has no remaining sessions or has expired.' :
-        reason === 'customer_mismatch' ? 'This package does not belong to the specified customer.' :
-        reason === 'package_lookup_failed' ? 'Package not found.' :
-        'Package redemption failed; booking was rolled back.'
-      return NextResponse.json({ error: message, reason }, { status: 400 })
-    }
-  }
-
-  // Fire-and-forget notification. Failures do not break the booking.
-  try {
-    await sendBookingNotification({
-      event: 'booking_confirmation',
-      booking: apt,
-      service: svc || null,
-    })
-  } catch (err) {
-    console.error('[booking.post] notification failed', err?.message || err)
-  }
-
-  return NextResponse.json({ appointment: apt }, { status: 201 })
+  return createAppointmentsHandler(routeDependencies)(request)
 }

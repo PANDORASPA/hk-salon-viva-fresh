@@ -59,6 +59,16 @@ test('render booking_reschedule mentions previous and new time', () => {
   assert.match(out.whatsapp.body, /新時間/)
 })
 
+test('reschedule notification preserves package usage and omits an unknown previous time', () => {
+  const output = render('booking_reschedule', { booking:{id:5,customer_package_id:1},
+    customerName:'Ada', startsAtHkd:'新時間', prevStartsAtHkd:null })
+  for (const body of [output.whatsapp.body, output.email.body]) {
+    assert.match(body, /新時間/)
+    assert.doesNotMatch(body, /null|undefined|重新扣減/)
+    assert.match(body, /原本/)
+  }
+})
+
 test('sendBookingNotification returns no_contact when both phone and email missing', async () => {
   const result = await sendBookingNotification({
     event: 'booking_confirmation',

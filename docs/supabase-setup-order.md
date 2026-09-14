@@ -12,20 +12,21 @@ Do not apply root-level legacy SQL as a substitute for the migrations below.
 | `20260813000200_salon_poke_rls_storage.sql` | Admin helper, RLS, grants and gallery storage |
 | `20260905000000_customers_packages.sql` | Customers, package catalogue and ownership records |
 | `20260905000001_appointments_customer_id.sql` | Appointment/customer/package links and legacy RPC |
-| `20260907000000_package_redeem_rpc.sql` | Package redemption/refund RPCs (fresh-install blockers below) |
+| `20260907000000_package_redeem_rpc.sql` | Package redemption/refund RPCs; fresh replay repaired |
 | `20260907000001_notifications_table.sql` | Notification delivery records |
 | `20260907000002_app_settings.sql` | Runtime settings |
 | `20260914101458_booking_staff_foundation.sql` | Staff, skills, weekly hours, time off and per-staff occupancy |
+| `20260914110338_booking_commands.sql` | Atomic create, reschedule, cancellation and retained package refunds |
 
-Fresh-install replay currently has two known defects in the historical package
-RPC migration: `redeem_customer_package` returns `public.package_redemptions`
-before that table exists, and `deduct_package_session(bigint,bigint)` changes
-return type from `void` to `public.package_redemptions` with `CREATE OR REPLACE`,
-which PostgreSQL rejects. The migration's own comment describes creating the
-table first, but that alone does not fix the return-type change. These require a
-separately reviewed historical migration repair before a clean full-chain reset.
-Do not resolve either by dropping production data or silently skipping it during
-deployment. The Task 2 tests skip that one migration and state this limitation.
+Fresh-install replay now creates `package_redemptions` before its composite type
+is referenced, and explicitly drops/recreates the legacy
+`deduct_package_session(bigint,bigint)` signature when changing its return type
+from `void`. The DROP does not use CASCADE, and its service-role grant is restored
+in the same migration. No table or data is dropped. Supabase does not rerun an
+already-applied migration, so these historical-file corrections affect fresh
+replay only. The new command migration separately upgrades refund behavior on
+both existing and new databases. Staff-schema tests and booking-command tests
+now replay every predecessor, without skipping the historical RPC migration.
 
 ## Staff foundation: before applying
 
@@ -98,13 +99,26 @@ this migration is transactional, not an independently repeatable SQL script.
   occupancy; restoring an active state must pass the constraint again.
 - `source` is `web`, `account` or `admin`; confirmation stores only
   `confirmation_token_hash`. Cancellation metadata is `cancelled_at` plus nullable
-  auth-user FK `cancelled_by`. Token generation and cancellation commands follow
-  in later tasks.
+  auth-user FK `cancelled_by`. The server generates 32 random token bytes, stores
+  only a SHA-256 hash, and returns the raw token once after successful creation.
 
-Staff/service mapping and weekly-hours checks do not replace the later atomic
-booking RPC: it must validate active staff, capability, working hours, time off,
-shop rules and package ownership. The legacy RPC still has a shop-wide conflict
-query and is only a compatibility bridge, not the new multi-staff allocator.
+The atomic v2 RPCs revalidate active staff, skills, shop/staff hours, time off,
+blocked dates, slot grid, lead time, booking horizon and package entitlement.
+The server-only invoker functions have explicit service-role grants and revoke
+PUBLIC/anon/authenticated execution. Each staff collision attempt has its own
+exception block; the exclusion constraint is authoritative. Reschedule updates
+the existing row in one transaction, preserving its original redemption, and
+cancel marks that redemption refunded once while retaining the audit record.
+
+`createAppointmentsHandler` accepts a trusted `resolveCustomer(request)` returning
+`{ customer, actorUserId }`. Task 6 supplies this resolver and `customers.user_id`.
+Before then the default route accepts guests and refuses package use with 401;
+SQL also fails closed when the identity column/binding is absent. Request-body
+customer IDs, actor IDs and source values are never identity proof. Reschedule
+passes the verified actor as the fourth RPC argument (defaulting to `auth.uid()`
+for SQL clients); cancellation passes the verified actor as its second argument.
+Cancellation cutoff is enforced from the transactional `app_settings` value;
+the old route-only environment override is no longer authoritative.
 
 ## After applying
 
@@ -142,7 +156,10 @@ real `btree_gist`/`pgcrypto` extensions and execute this migration unmodified.
 They cover backfill, transactional preflight failure, exclusion behavior, range
 derivation, legacy insert compatibility and role-based SQL access, both with and
 without old automatic grants. Supabase-owned auth/storage fixture scaffolding is
-minimal, and the historical package RPC migration is excluded as explained above.
+minimal. `node --test tests/booking-commands.test.mjs` adds full-chain replay,
+real route-to-RPC execution, package rollback, collision retry and refund tests.
+Its package cases explicitly add the forward-compatible Task 6 identity fixture;
+the guest/full-chain case verifies fail-closed behavior without that column.
 This is not a PostgREST, hosted Supabase, advisor or concurrent-session test. A
 full local/preview Supabase verification remains part of the release gate.
 

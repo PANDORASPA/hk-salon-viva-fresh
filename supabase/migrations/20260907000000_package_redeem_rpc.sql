@@ -16,11 +16,16 @@
 --   - public.customer_packages  (id, customer_id, package_id, total_sessions,
 --                                sessions_remaining, is_active, expires_at, ...)
 --   - public.appointments       (id, customer_id, customer_package_id, status, ...)
---   - public.package_redemptions(id, customer_package_id, appointment_id, redeemed_at)
---
--- If `package_redemptions` does not yet exist in your environment, the second
--- insert inside `redeem_customer_package` will raise — apply the create-table
--- statement at the bottom of this file first.
+-- Fresh-replay correction: this composite return type must exist before any
+-- function signature references it. Already-applied migrations are not rerun.
+create table if not exists public.package_redemptions (
+  id bigserial primary key,
+  customer_package_id bigint not null references public.customer_packages(id) on delete cascade,
+  appointment_id bigint not null references public.appointments(id) on delete cascade,
+  redeemed_at timestamptz not null default now(),
+  refunded_at timestamptz,
+  unique (appointment_id)
+);
 
 create or replace function public.redeem_customer_package(
   p_customer_package_id bigint,
@@ -108,6 +113,10 @@ $$;
 -- `deduct_package_session` rather than `redeem_customer_package`. Keep the
 -- old name working so the current booking flow does not break before the
 -- code is updated to the new helper.
+-- The September 5 signature returns void. PostgreSQL cannot change a return
+-- type with CREATE OR REPLACE; no CASCADE is used, so unknown dependents fail
+-- safely instead of being removed. Permissions are explicitly restored below.
+drop function if exists public.deduct_package_session(bigint, bigint);
 create or replace function public.deduct_package_session(
   p_customer_package_id bigint,
   p_appointment_id bigint
@@ -127,16 +136,6 @@ revoke all on function public.deduct_package_session(bigint, bigint) from public
 grant execute on function public.redeem_customer_package(bigint, bigint) to service_role;
 grant execute on function public.refund_customer_package(bigint, bigint) to service_role;
 grant execute on function public.deduct_package_session(bigint, bigint) to service_role;
-
--- If `package_redemptions` does not exist yet, create it.
-create table if not exists public.package_redemptions (
-  id bigserial primary key,
-  customer_package_id bigint not null references public.customer_packages(id) on delete cascade,
-  appointment_id bigint not null references public.appointments(id) on delete cascade,
-  redeemed_at timestamptz not null default now(),
-  refunded_at timestamptz,
-  unique (appointment_id)
-);
 
 create index if not exists package_redemptions_pkg_idx
   on public.package_redemptions (customer_package_id);
