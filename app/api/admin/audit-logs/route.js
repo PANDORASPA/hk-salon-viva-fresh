@@ -20,7 +20,7 @@ export async function GET(request) {
 
   let query = ctx.db
     .from('admin_audit_logs')
-    .select('id, actor_user_id, action, target_table, target_id, ip, user_agent, created_at')
+    .select('id, actor_user_id, action, target_table, target_id, before_data, after_data, metadata, ip, user_agent, created_at')
     .order('created_at', { ascending: false })
     .range(offset, offset + limit - 1)
   if (action) query = query.eq('action', action)

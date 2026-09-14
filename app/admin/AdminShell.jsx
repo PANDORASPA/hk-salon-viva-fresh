@@ -3,16 +3,16 @@ import Link from 'next/link'
 import { useState } from 'react'
 import { getBrowserClient } from '../../lib/supabase/browser'
 import {
-  AdministratorsModule,
-  AppointmentsModule,
-  AuditLogModule,
   GalleryModule,
   ScheduleModule,
-  ServicesModule,
-  SettingsModule,
-  SiteContentModule,
-} from '../components/admin/SalonAdminModules'
-import { CustomersModule, PackagesModule } from '../components/admin/SalonCustomerModules'
+} from './components/OperationsSupportModules'
+import CustomersModule from './components/CustomersModule'
+import ServicesModule from './components/ServicesModule'
+import PackagesModule from './components/PackagesModule'
+import SettingsModule from './components/SettingsModule'
+import SiteContentModule from './components/SiteContentModule'
+import AdministratorsModule from './components/AdministratorsModule'
+import AuditLogModule from './components/AuditLogModule'
 import AdminNav from './components/AdminNav'
 import BookingCalendar from './components/BookingCalendar'
 import DashboardModule from './components/DashboardModule'

@@ -1,0 +1,3 @@
+'use client'
+import { Module, Status, useAdminRows } from './admin-module-ui'
+export default function AuditLogModule() { const resource = useAdminRows('/api/admin/audit-logs', 'auditLogs'); return <Module title="審計日誌" intro="所有後台更改均保留前後資料及原因。"><button type="button" onClick={resource.load}>重新載入</button><Status {...resource}><div className="admin-list">{resource.rows.map(row => <article key={row.id}><strong>{row.action}</strong><p>{new Date(row.created_at).toLocaleString('zh-HK', { timeZone: 'Asia/Hong_Kong', hour12: false })}</p>{row.metadata?.reason ? <p>原因：{row.metadata.reason}</p> : null}</article>)}</div></Status></Module> }

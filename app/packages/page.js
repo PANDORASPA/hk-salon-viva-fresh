@@ -1,5 +1,5 @@
 import Footer from '../components/Footer'
-import { isStripeMockMode } from '../../lib/payments/stripe'
+import { isStripeConfigured } from '../../lib/payments/stripe'
 import { getServerClient } from '../../lib/supabase/server'
 import { defaultServices, salonDefaults } from '../../content/salon-poke-defaults'
 import Nav from '../components/i18n/Nav'
@@ -43,7 +43,7 @@ export default async function PackagesPage() {
           colour_hex: '#a98152',
         }))
 
-  const mock = isStripeMockMode()
+  const purchasesEnabled = isStripeConfigured()
   const whatsapp = salonDefaults.contact.whatsapp
 
   return (
@@ -56,9 +56,9 @@ export default async function PackagesPage() {
         <p style={{ color: '#706961', marginBottom: 8 }}>
           {t('packages.subtitle', locale)}
         </p>
-        {mock && (
+        {!purchasesEnabled && (
           <div className="form-error" style={{ marginBottom: 24, fontSize: 13 }}>
-            ⚠️ {t('packages.mockBanner', locale)}
+            網上付款尚未啟用。請透過 WhatsApp 聯絡我們安排購買，現時不會建立模擬付款。
           </div>
         )}
         {dbError && (
@@ -87,7 +87,7 @@ export default async function PackagesPage() {
                 <p className="salon-service-price" style={{ fontSize: 28, marginBottom: 12 }}>
                   HK$ {pkg.price_hkd}
                 </p>
-                <PackageBuyButton pkg={pkg} label={t('packages.buy', locale)} />
+                <PackageBuyButton pkg={pkg} label={t('packages.buy', locale)} enabled={purchasesEnabled} />
               </div>
             ))}
           </div>
@@ -110,7 +110,8 @@ export default async function PackagesPage() {
   )
 }
 
-function PackageBuyButton({ pkg, label }) {
+function PackageBuyButton({ pkg, label, enabled }) {
+  if (!enabled) return <button className="salon-button" type="button" disabled title="網上付款尚未啟用">網上付款尚未啟用</button>
   return (
     <a
       className="salon-button"

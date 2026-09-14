@@ -1,0 +1,7 @@
+'use client'
+import { useEffect, useState } from 'react'
+import { adminApi, Feedback, Module, SaveButton, useSave } from './admin-module-ui'
+export default function SiteContentModule() { const save = useSave(); const [data, setData] = useState(null); useEffect(() => { adminApi('/api/admin/site-content').then(row => setData(row.content.data)).catch(error => save.submit(() => Promise.reject(error))) }, [])
+  if (!data) return <Module title="網站內容"><p role="status">載入中…</p></Module>
+  const set = (group, key, value) => setData({ ...data, [group]: { ...(data[group] || {}), [key]: value } })
+  return <Module title="網站內容" intro="更新公開資料，儲存後立即發佈。"><label>店舖名稱<input value={data.identity?.name || ''} onChange={e => set('identity', 'name', e.target.value)}/></label><label>主標題<input value={data.identity?.heroTitle || ''} onChange={e => set('identity', 'heroTitle', e.target.value)}/></label><label>WhatsApp<input value={data.contact?.whatsapp || ''} onChange={e => set('contact', 'whatsapp', e.target.value)}/></label><SaveButton pending={save.pending} onClick={() => save.submit(() => adminApi('/api/admin/site-content', { method: 'PATCH', body: JSON.stringify({ data }) }), '已儲存並發佈。')}>儲存內容</SaveButton><Feedback {...save}/></Module> }

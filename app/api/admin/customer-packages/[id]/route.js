@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server'
 import { adminContext, audit, jsonError } from '../../../../../lib/admin/salon-api'
+import { guardMutationRequest } from '../../../../../lib/security/request-guards'
+import { applyPackageAdjustment } from '../../../../../lib/admin/package-adjustment'
 
 export async function GET(request, { params }) {
   const ctx = await adminContext()
@@ -16,11 +18,21 @@ export async function GET(request, { params }) {
 }
 
 export async function PATCH(request, { params }) {
+  const guard = await guardMutationRequest(request, { rateLimit: { scope: 'admin.customer-packages', limit: 30, windowMs: 60_000 } })
+  if (guard) return guard
   const ctx = await adminContext()
   if (ctx.response) return ctx.response
   const id = Number(params.id)
   if (!Number.isSafeInteger(id)) return jsonError('Invalid ID', 400)
   const body = await request.json()
+  if (body.adjustment !== undefined || body.reason !== undefined) {
+    try {
+      const customerPackage = await applyPackageAdjustment(ctx.db, ctx.auth.user.id, { id, adjustment: body.adjustment, reason: body.reason })
+      return NextResponse.json({ customerPackage })
+    } catch (error) {
+      return jsonError(error, 400)
+    }
+  }
   const { sessions_remaining, is_active, expires_at } = body
   const update = {}
   if (sessions_remaining !== undefined) update.sessions_remaining = Number(sessions_remaining)
@@ -33,6 +45,8 @@ export async function PATCH(request, { params }) {
 }
 
 export async function DELETE(request, { params }) {
+  const guard = await guardMutationRequest(request, { rateLimit: { scope: 'admin.customer-packages', limit: 15, windowMs: 60_000 } })
+  if (guard) return guard
   const ctx = await adminContext()
   if (ctx.response) return ctx.response
   const id = Number(params.id)

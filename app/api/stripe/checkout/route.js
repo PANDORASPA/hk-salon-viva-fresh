@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getServerClient } from '../../../../lib/supabase/server'
 import { getServiceClient } from '../../../../lib/supabase/service'
-import { createCheckoutSession } from '../../../../lib/payments/stripe'
+import { createCheckoutSession, isStripeConfigured } from '../../../../lib/payments/stripe'
 import { guardMutationRequest } from '../../../../lib/security/request-guards'
 
 /**
@@ -13,6 +13,7 @@ import { guardMutationRequest } from '../../../../lib/security/request-guards'
  */
 export async function GET(request) {
   const url = new URL(request.url)
+  if (!isStripeConfigured()) return NextResponse.redirect(new URL('/packages?error=payments_unavailable', url.origin))
   const packageId = url.searchParams.get('package_id')
   if (!packageId) {
     return NextResponse.redirect(new URL('/packages?error=missing_package_id', url.origin))
@@ -52,6 +53,7 @@ export async function GET(request) {
 export async function POST(request) {
   const guard = await guardMutationRequest(request, { rateLimit: { scope: 'stripe.checkout', limit: 30, windowMs: 3_600_000 } })
   if (guard) return guard
+  if (!isStripeConfigured()) return NextResponse.json({ error: '網上付款尚未啟用。' }, { status: 503 })
 
   const body = await request.json().catch(() => ({}))
   const packageId = body?.package_id
@@ -74,5 +76,5 @@ export async function POST(request) {
     customerName: body?.customerName,
   })
 
-  return NextResponse.json({ id: session.id, url: session.url, mock: session.mock }, { status: 200 })
+  return NextResponse.json({ id: session.id, url: session.url }, { status: 200 })
 }

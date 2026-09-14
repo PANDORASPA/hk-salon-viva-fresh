@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { adminContext, audit, jsonError } from '../../../../../lib/admin/salon-api'
+import { guardMutationRequest } from '../../../../../lib/security/request-guards'
 
 export async function GET(request, { params }) {
   const ctx = await adminContext()
@@ -8,7 +9,7 @@ export async function GET(request, { params }) {
   if (!Number.isSafeInteger(id)) return jsonError('Invalid ID', 400)
   const { data, error } = await ctx.db
     .from('customers')
-    .select('*, customer_packages(id, package_id, total_sessions, sessions_remaining, is_active, expires_at, packages(name, colour_hex))')
+    .select('*, appointments(id, reference, starts_at, status), customer_packages(id, package_id, total_sessions, sessions_remaining, is_active, expires_at, packages(name, colour_hex), package_redemptions(id, redeemed_at, refunded_at))')
     .eq('id', id)
     .single()
   if (error) return jsonError(error)
@@ -16,6 +17,8 @@ export async function GET(request, { params }) {
 }
 
 export async function PATCH(request, { params }) {
+  const guard = await guardMutationRequest(request, { rateLimit: { scope: 'admin.customers', limit: 30, windowMs: 60_000 } })
+  if (guard) return guard
   const ctx = await adminContext()
   if (ctx.response) return ctx.response
   const id = Number(params.id)
@@ -35,6 +38,8 @@ export async function PATCH(request, { params }) {
 }
 
 export async function DELETE(request, { params }) {
+  const guard = await guardMutationRequest(request, { rateLimit: { scope: 'admin.customers', limit: 15, windowMs: 60_000 } })
+  if (guard) return guard
   const ctx = await adminContext()
   if (ctx.response) return ctx.response
   const id = Number(params.id)

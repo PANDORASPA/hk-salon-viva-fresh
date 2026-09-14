@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { adminContext, audit, jsonError } from '../../../../lib/admin/salon-api'
+import { guardMutationRequest } from '../../../../lib/security/request-guards'
 
 export async function GET() {
   const ctx = await adminContext()
@@ -13,6 +14,8 @@ export async function GET() {
 }
 
 export async function POST(request) {
+  const guard = await guardMutationRequest(request, { rateLimit: { scope: 'admin.packages', limit: 30, windowMs: 60_000 } })
+  if (guard) return guard
   const ctx = await adminContext()
   if (ctx.response) return ctx.response
   const body = await request.json()

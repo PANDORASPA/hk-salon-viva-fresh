@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { getServiceClient } from '../../../../lib/supabase/service'
-import { verifyWebhook, isStripeMockMode } from '../../../../lib/payments/stripe'
+import { verifyWebhook, isStripeConfigured } from '../../../../lib/payments/stripe'
 
 /**
  * POST /api/stripe/webhook
@@ -16,36 +16,19 @@ import { verifyWebhook, isStripeMockMode } from '../../../../lib/payments/stripe
  * ticket end-to-end.
  */
 export async function POST(request) {
+  if (!isStripeConfigured()) return NextResponse.json({ error: '網上付款尚未啟用。' }, { status: 503 })
   const db = getServiceClient()
   if (!db) {
     return NextResponse.json({ error: 'Supabase service role not configured.' }, { status: 500 })
   }
 
   let event
-  if (isStripeMockMode()) {
-    const body = await request.json().catch(() => ({}))
-    if (!body.session_id || !body.package_id) {
-      return NextResponse.json({ error: 'session_id and package_id required (mock mode).' }, { status: 400 })
-    }
-    event = await verifyWebhook({ sessionId: body.session_id })
-    // Augment the synthetic event with the explicit fields the dev caller
-    // supplied — Stripe normally delivers these inside `session.metadata`.
-    event.data.object.metadata = {
-      package_id: String(body.package_id),
-      customer_id: body.customer_id ? String(body.customer_id) : '',
-      customer_name: body.customer_name || '',
-      customer_phone: body.customer_phone || '',
-      customer_email: body.customer_email || '',
-    }
-    event.data.object.amount_total = body.amount_total ?? 0
-  } else {
-    const rawBody = await request.text()
-    const signature = request.headers.get('stripe-signature')
-    try {
-      event = await verifyWebhook({ rawBody, signature })
-    } catch (err) {
-      return NextResponse.json({ error: `Webhook signature verification failed: ${err.message}` }, { status: 400 })
-    }
+  const rawBody = await request.text()
+  const signature = request.headers.get('stripe-signature')
+  try {
+    event = await verifyWebhook({ rawBody, signature })
+  } catch (err) {
+    return NextResponse.json({ error: `Webhook signature verification failed: ${err.message}` }, { status: 400 })
   }
 
   if (event.type !== 'checkout.session.completed') {
@@ -104,5 +87,5 @@ export async function POST(request) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 
-  return NextResponse.json({ received: true, ticketId: data.id, mock: !!event.mock }, { status: 200 })
+  return NextResponse.json({ received: true, ticketId: data.id }, { status: 200 })
 }

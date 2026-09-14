@@ -1,8 +1,6 @@
 import Link from 'next/link'
 import Footer from '../../components/Footer'
-import { getServerClient } from '../../../lib/supabase/server'
 import { salonDefaults } from '../../../content/salon-poke-defaults'
-import { isStripeMockMode } from '../../../lib/payments/stripe'
 import Nav from '../../components/i18n/Nav'
 import { t } from '../../../lib/i18n/dict'
 import { getLocale } from '../../../lib/i18n/server'
@@ -15,30 +13,6 @@ export default async function PackagesSuccessPage({ searchParams }) {
   const sessionId = searchParams?.session_id
   const errorCode = searchParams?.error
   const whatsapp = salonDefaults.contact.whatsapp
-  const mock = isStripeMockMode()
-
-  let ticketId = null
-  let fallbackError = null
-  if (mock && sessionId) {
-    try {
-      const packageId = searchParams?.package_id
-      const customerEmail = searchParams?.email
-      const r = await fetch(`${process.env.NEXT_PUBLIC_SITE_URL || ''}/api/stripe/webhook`.replace('//api', '/api'), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          session_id: sessionId,
-          package_id: packageId,
-          customer_email: customerEmail,
-          customer_name: searchParams?.name,
-        }),
-      }).catch(() => null)
-      const data = await r?.json().catch(() => ({}))
-      ticketId = data?.ticketId || null
-    } catch (err) {
-      fallbackError = err.message
-    }
-  }
 
   if (errorCode) {
     return (
@@ -69,7 +43,7 @@ export default async function PackagesSuccessPage({ searchParams }) {
           ✓ {t('success.title', locale)}
         </h1>
         <p style={{ color: '#706961', marginBottom: 24 }}>
-          {t('success.thanks', locale)} {mock && t('success.testNotice', locale)}
+          感謝你的訂單。我們正等待付款平台的已驗證通知；套票會在確認後發出。
         </p>
 
         {sessionId && (
@@ -79,25 +53,11 @@ export default async function PackagesSuccessPage({ searchParams }) {
                 <strong>{t('success.transaction', locale)}</strong>
                 <p style={{ fontFamily: 'monospace', fontSize: 13 }}>{sessionId}</p>
               </div>
-              <span className="status completed">{t('success.paid', locale)}</span>
+              <span className="status pending">付款確認中</span>
             </article>
-            {ticketId && (
-              <article>
-                <div>
-                  <strong>{t('success.ticketId', locale)}</strong>
-                  <p style={{ fontFamily: 'monospace', fontSize: 13 }}>#{ticketId}</p>
-                </div>
-                <span className="status confirmed">{t('success.issued', locale)}</span>
-              </article>
-            )}
           </div>
         )}
 
-        {fallbackError && (
-          <div className="form-error" style={{ marginBottom: 16 }}>
-            {t('success.failedNotice', locale)}：{fallbackError}
-          </div>
-        )}
 
         <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 32 }}>
           <Link className="salon-button" href="/booking">{t('home.cta.book', locale)}</Link>
