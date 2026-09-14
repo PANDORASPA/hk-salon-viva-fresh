@@ -19,6 +19,34 @@ function reminderDb({ appointment, claim }) {
       throw new Error(`Unexpected table: ${table}`)
     },
     async rpc(name, args) {
+      if (name === 'find_retryable_reminder_appointments') return { data: [], error: null }
+      if (name === 'finalize_reminder_notification') {
+        seen.finalizations.push(args)
+        return { data: [{ finalized: true }], error: null }
+      }
+      seen.claims.push({ name, args })
+      return { data: claim, error: null }
+    },
+  }
+}
+
+function retryReminderDb({ appointment, claim }) {
+  const seen = { retryQueries: [], claims: [], finalizations: [] }
+  return {
+    seen,
+    from(table) {
+      if (table !== 'appointments') throw new Error(`Unexpected table: ${table}`)
+      const chain = {
+        select: () => chain, in: () => chain, gte: () => chain, lt: () => chain,
+        order: async () => ({ data: [], error: null }),
+      }
+      return chain
+    },
+    async rpc(name, args) {
+      if (name === 'find_retryable_reminder_appointments') {
+        seen.retryQueries.push(args)
+        return { data: [appointment], error: null }
+      }
       if (name === 'finalize_reminder_notification') {
         seen.finalizations.push(args)
         return { data: [{ finalized: true }], error: null }
@@ -68,4 +96,17 @@ test('reminder dry-run records the outcome without invoking the email provider',
   const result = await dispatchReminders({ db, now: new Date('2026-09-15T00:00:00.000Z'), settings: { reminder_hours_before: 24, notify_email_enabled: true, notify_dry_run: true }, sendEmail: async () => assert.fail('dry-run must gate the provider') })
   assert.equal(result.dry_run, 1)
   assert.deepEqual(db.seen.finalizations[0].p_channel_results.email, { ok: false, status: 'dry_run', reason: 'dry_run_enabled' })
+})
+
+test('the next hourly scheduler retries a failed reminder outside its original appointment hour', async () => {
+  // Mutation caught: querying only the current appointment hour leaves a 00:00
+  // failure for a 00:30-next-day booking permanently unvisited at 01:00.
+  const appointment = { id: 21, starts_at: '2026-09-16T00:30:00.000Z', status: 'confirmed', customer_name: 'Ada', customer_email: 'ada@example.test', services: { name: 'Treatment' } }
+  const db = retryReminderDb({ appointment, claim: [{ notification_id: 121, claimed: true, claim_token: 'retry-121' }] })
+  const sent = []
+  const result = await dispatchReminders({ db, now: new Date('2026-09-15T01:00:00.000Z'), settings: { reminder_hours_before: 24, cancel_cutoff_hours: 24, notify_email_enabled: true, notify_dry_run: false }, sendEmail: async input => (sent.push(input), { ok: true, status: 'sent', id: 'provider-retry' }) })
+  assert.equal(sent.length, 1)
+  assert.equal(sent[0].idempotencyKey, 'reminder:21:24')
+  assert.deepEqual(db.seen.retryQueries, [{ p_reminder_window_hours: 24, p_now: '2026-09-15T01:00:00.000Z', p_limit: 50 }])
+  assert.deepEqual(result, { checked: 1, sent: 1, dry_run: 0, skipped: 0, failed: 0, items: [{ id: 21, status: 'sent', messageId: 'provider-retry' }] })
 })

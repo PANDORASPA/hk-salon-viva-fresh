@@ -51,3 +51,46 @@ test('provider error reasons are controlled codes and never echo credentials', (
     assert.doesNotMatch(reason, /secret-value|api_key|bearer|token|key/i)
   }
 })
+
+test('Resend receives a reminder idempotency key as send options, never as email payload data', async () => {
+  // Mutation caught: passing idempotencyKey in the payload silently omits the
+  // provider's Idempotency-Key header and allows a retry to duplicate email.
+  const calls = []
+  const previousKey = process.env.RESEND_API_KEY
+  const previousFrom = process.env.NOTIFY_EMAIL_FROM
+  process.env.RESEND_API_KEY = 're_test'
+  process.env.NOTIFY_EMAIL_FROM = 'studio@example.test'
+  __testing.setResendClient({ emails: { send: async (...args) => (calls.push(args), { data: { id: 'provider-1' } }) } })
+  try {
+    const result = await sendEmail({ to: 'guest@example.test', subject: 'Reminder', text: 'Tomorrow', idempotencyKey: 'reminder:9:24' })
+    assert.deepEqual(result, { ok: true, status: 'sent', id: 'provider-1' })
+    assert.equal(calls.length, 1)
+    assert.equal(calls[0][0].idempotencyKey, undefined)
+    assert.deepEqual(calls[0][1], { idempotencyKey: 'reminder:9:24' })
+  } finally {
+    __testing.setResendClient(null)
+    if (previousKey === undefined) delete process.env.RESEND_API_KEY
+    else process.env.RESEND_API_KEY = previousKey
+    if (previousFrom === undefined) delete process.env.NOTIFY_EMAIL_FROM
+    else process.env.NOTIFY_EMAIL_FROM = previousFrom
+  }
+})
+
+test('Resend omits send options when no idempotency key is supplied', async () => {
+  const calls = []
+  const previousKey = process.env.RESEND_API_KEY
+  const previousFrom = process.env.NOTIFY_EMAIL_FROM
+  process.env.RESEND_API_KEY = 're_test'
+  process.env.NOTIFY_EMAIL_FROM = 'studio@example.test'
+  __testing.setResendClient({ emails: { send: async (...args) => (calls.push(args), { data: { id: 'provider-2' } }) } })
+  try {
+    await sendEmail({ to: 'guest@example.test', subject: 'Confirmation', text: 'Booked' })
+    assert.equal(calls[0].length, 1)
+  } finally {
+    __testing.setResendClient(null)
+    if (previousKey === undefined) delete process.env.RESEND_API_KEY
+    else process.env.RESEND_API_KEY = previousKey
+    if (previousFrom === undefined) delete process.env.NOTIFY_EMAIL_FROM
+    else process.env.NOTIFY_EMAIL_FROM = previousFrom
+  }
+})

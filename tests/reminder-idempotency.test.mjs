@@ -63,3 +63,37 @@ test('failed and stale reminder claims are retryable, but a sent reminder remain
   assert.equal(staleRetry.claimed, true)
   assert.notEqual(staleRetry.claim_token, staleFirst.claim_token)
 })
+
+test('bounded retry lookup revisits failed or expired claims at the next scheduler clock only while the appointment remains eligible', async t => {
+  // Mutation caught: a retry query tied to the original one-hour window never
+  // sees a 00:00 failure at the next 01:00 scheduler run.
+  const db = await bookingDatabase(t)
+  await db.exec('set role service_role')
+  const bookingId = (await db.query("insert into public.appointments(service_id,staff_id,customer_name,customer_phone,customer_email,starts_at,ends_at) values(1,1,'Clock','94567890','clock@example.test',now()+interval '24 hours 30 minutes',now()+interval '25 hours 30 minutes') returning id")).rows[0].id
+  const claimSql = "select * from public.claim_reminder_notification($1, 'reminder', 24, 'Clock', 'clock@example.test', now()+interval '24 hours 30 minutes', 'subject', 'body')"
+  const first = (await db.query(claimSql, [bookingId])).rows[0]
+  await db.query("select * from public.finalize_reminder_notification($1, $2, '{\"email\":{\"ok\":false,\"status\":\"failed\",\"reason\":\"provider_error\"}}'::jsonb)", [first.notification_id, first.claim_token])
+
+  const retriedAtOne = await db.query("select * from public.find_retryable_reminder_appointments(24, now()+interval '1 hour', 50)")
+  assert.deepEqual(retriedAtOne.rows.map(row => row.id), [bookingId])
+
+  await db.query("update public.notifications set reminder_attempt=5 where id=$1", [first.notification_id])
+  const capped = await db.query("select * from public.find_retryable_reminder_appointments(24, now()+interval '1 hour', 50)")
+  assert.deepEqual(capped.rows, [])
+
+  await db.query("update public.notifications set reminder_attempt=1, channel_results='{\"email\":{\"ok\":false,\"status\":\"persistence_pending\",\"reason\":\"delivery_pending\"}}'::jsonb, reminder_lease_expires_at=now()-interval '1 minute' where id=$1", [first.notification_id])
+  const stale = await db.query("select * from public.find_retryable_reminder_appointments(24, now()+interval '1 hour', 50)")
+  assert.deepEqual(stale.rows.map(row => row.id), [bookingId])
+  await db.query("update public.appointments set status='cancelled' where id=$1", [bookingId])
+  const terminal = await db.query("select * from public.find_retryable_reminder_appointments(24, now()+interval '1 hour', 50)")
+  assert.deepEqual(terminal.rows, [])
+  const terminalClaim = (await db.query(claimSql, [bookingId])).rows[0]
+  assert.equal(terminalClaim.claimed, false)
+
+  await db.query("update public.appointments set status='confirmed' where id=$1", [bookingId])
+  for (const status of ['sent', 'disabled', 'dry_run']) {
+    await db.query("update public.notifications set channel_results=jsonb_build_object('email', jsonb_build_object('ok', $2::boolean, 'status', $3::text)) where id=$1", [first.notification_id, status === 'sent', status])
+    const final = await db.query("select * from public.find_retryable_reminder_appointments(24, now()+interval '1 hour', 50)")
+    assert.deepEqual(final.rows, [])
+  }
+})
