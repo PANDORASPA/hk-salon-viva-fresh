@@ -36,7 +36,7 @@ Any P0 security/data-loss result or P1 booking-integrity result is an immediate 
 - [ ] Set server-only `SUPABASE_SERVICE_ROLE_KEY`; verify it is absent from browser bundles and public environment names.
 - [ ] Set `NEXT_PUBLIC_SITE_URL` to the exact target origin and add its `/auth/callback` URL in Supabase Auth redirects.
 - [ ] Set `CRON_SECRET`; configure `/api/cron/reminders` to use the Authorization bearer header.
-- [ ] Decide notification mode using `app_settings.notify_email_enabled`, `app_settings.notify_dry_run`, `NOTIFY_DRY_RUN`, `RESEND_API_KEY`, `NOTIFY_EMAIL_FROM`, and `NOTIFY_WHATSAPP_PROVIDER`; `NOTIFY_DRY_RUN=1` forces dry-run, while `0` defers to the saved setting. Test the stored outcome, not just a UI message.
+- [ ] Decide notification mode using `app_settings.notify_email_enabled`, `app_settings.notify_dry_run`, `NOTIFY_DRY_RUN`, `RESEND_API_KEY`, `NOTIFY_EMAIL_FROM`, and `NOTIFY_WHATSAPP_PROVIDER`; an unset `NOTIFY_DRY_RUN` defers to saved `notify_dry_run`, `1` forces dry-run, and `0` forces live delivery. `0` can send when the email channel, Resend configuration, and SDK are enabled. Test the stored outcome, not just a UI message.
 - [ ] If self-service packages are enabled, set `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY`, and `STRIPE_CURRENCY`; otherwise keep the purchase path honestly disabled.
 - [ ] Set `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN` if shared multi-instance rate limiting is required.
 - [ ] Enter only approved contact content. Confirm missing phone, WhatsApp, email, Instagram, address, and address-note fields remain hidden rather than substituted.

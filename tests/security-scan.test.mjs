@@ -27,7 +27,7 @@ test('security scan finds each literal assignment across JavaScript, shell, Powe
     `const ${key} =`,
     "  'first-literal'",
     `const ${key} = 'second-literal'; export ${stripe}=third-literal ${webhook}=fourth-literal; $env:${webhook} = \"fifth-literal\"`,
-    `let ${key}: string = 'typed-literal'; ${key}=fifth-literal`,
+    `let ${key}: string = 'typed-literal'; ${key}='fifth-literal'`,
     `{ ${publicKey}: 'public-literal' }`,
   ].join('\n')
 
@@ -59,4 +59,50 @@ test('security scan ignores env reads, prose, comments, and placeholders in ever
   ].join('\n')
 
   assert.deepEqual(scanText('README.md', source), [])
+})
+
+test('security scan handles trivia-separated, block, comma, and chained-shell assignments while skipping dynamic values', () => {
+  const key = 'SUPABASE_SERVICE_ROLE_KEY'
+  const stripe = 'STRIPE_SECRET_KEY'
+  const webhook = 'STRIPE_WEBHOOK_SECRET'
+  const publicKey = 'NEXT_PUBLIC_SERVICE_ROLE_KEY'
+  const source = [
+    'if (enabled) {',
+    `  let ${key} =`,
+    '',
+    '  // a blank/comment-separated literal is still an assignment',
+    "  'block-literal'",
+    '}',
+    `const count = 1, ${stripe} = 'comma-literal', ${webhook} = 'second-comma-literal'`,
+    `const settings = { ${publicKey}:`,
+    '  /* comment between the colon and value */',
+    "  'object-literal' }",
+    `set ${key}=shell-one && export ${stripe}=shell-two ${webhook}=shell-three`,
+    `const processRead = process.env.${key}`,
+    `const ${key} = process.env.INTERNAL_SERVICE_KEY`,
+    `const ${stripe} = readSecret()`,
+    `const ${webhook} = \`dynamic-${'${'}process.env.INTERNAL_SECRET}\``,
+    `const envObject = { ${key}: process.env.INTERNAL_SERVICE_KEY }`,
+    `${publicKey}=<documented-placeholder>`,
+  ].join('\n')
+
+  assert.deepEqual(scanText('fixture.ts', source), [
+    { line: 2, label: 'Supabase service role key' },
+    { line: 7, label: 'Stripe secret key' },
+    { line: 7, label: 'Stripe webhook secret' },
+    { line: 8, label: 'Secret env exposed publicly' },
+    { line: 11, label: 'Supabase service role key' },
+    { line: 11, label: 'Stripe secret key' },
+    { line: 11, label: 'Stripe webhook secret' },
+  ])
+})
+
+test('security scan does not consume the next dotenv field after an empty value', () => {
+  const source = [
+    'STRIPE_SECRET_KEY=',
+    'STRIPE_WEBHOOK_SECRET=',
+    'NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=sb_publishable_example',
+  ].join('\n')
+
+  assert.deepEqual(scanText('.env.example', source), [])
 })

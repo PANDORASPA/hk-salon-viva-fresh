@@ -33,7 +33,7 @@ npm run build
 | Stripe 自助購買（啟用時） | `STRIPE_SECRET_KEY`、`STRIPE_WEBHOOK_SECRET`、`NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY`、`STRIPE_CURRENCY` |
 | 多實例 rate limit（選用） | `UPSTASH_REDIS_REST_URL`、`UPSTASH_REDIS_REST_TOKEN` |
 
-`CRON_SECRET` 透過 `Authorization: Bearer` 驗證；舊有 query-secret 相容路徑仍存在，但新 cron 設定應使用 Authorization header。電郵功能實際由 `app_settings` 的 `notify_email_enabled` 和 `notify_dry_run` 控制；`NOTIFY_DRY_RUN=1` 強制 dry-run，`NOTIFY_DRY_RUN=0` 則讓後台設定決定是否 dry-run。Live Resend 另需 `RESEND_API_KEY`、`NOTIFY_EMAIL_FROM` 及 `resend` SDK；Stripe 自助購買另需 Stripe 變數及 `stripe` SDK。這兩個 SDK 目前未安裝，所以如在 preview／production 啟用任何相應功能，必須先安裝並以隔離環境驗證，否則為 no-go。
+`CRON_SECRET` 透過 `Authorization: Bearer` 驗證；舊有 query-secret 相容路徑仍存在，但新 cron 設定應使用 Authorization header。電郵功能實際由 `app_settings` 的 `notify_email_enabled` 和 `notify_dry_run` 控制：`NOTIFY_DRY_RUN` 未設定時才跟隨已儲存的 `notify_dry_run`；`1` 強制 dry-run；`0` 強制關閉 dry-run（live）。`0` 在電郵已啟用、Resend 設定及 SDK 都可用時可以實際送出，必須小心使用。Live Resend 另需 `RESEND_API_KEY`、`NOTIFY_EMAIL_FROM` 及 `resend` SDK；Stripe 自助購買另需 Stripe 變數及 `stripe` SDK。這兩個 SDK 目前未安裝，所以如在 preview／production 啟用任何相應功能，必須先安裝並以隔離環境驗證，否則為 no-go。
 
 ## 內容與資料保護
 

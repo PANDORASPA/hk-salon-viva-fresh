@@ -25,7 +25,13 @@ Configure the names below in the target secret store, never in source control.
 | Stripe, only when enabled | `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY`, `STRIPE_CURRENCY` |
 | Optional shared rate-limit store | `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN` |
 
-Add `/auth/callback` under the exact `NEXT_PUBLIC_SITE_URL` to Supabase Auth redirect configuration. The cron route is `/api/cron/reminders`; use an `Authorization: Bearer` header derived from `CRON_SECRET`. The legacy query-secret compatibility path must not be used for new schedules. Email delivery is controlled by `app_settings.notify_email_enabled` and `app_settings.notify_dry_run`; `NOTIFY_DRY_RUN=1` forces dry-run, while `NOTIFY_DRY_RUN=0` defers to the saved setting. Live Resend additionally needs `RESEND_API_KEY`, `NOTIFY_EMAIL_FROM`, and the optional `resend` SDK. Live Stripe additionally needs its configured variables and the optional `stripe` SDK. Neither SDK is currently installed: enabling either feature on preview or production is no-go until its package is installed and the relevant smoke has passed.
+Add `/auth/callback` under the exact `NEXT_PUBLIC_SITE_URL` to Supabase Auth redirect configuration. The cron route is `/api/cron/reminders`; use an `Authorization: Bearer` header derived from `CRON_SECRET`. The legacy query-secret compatibility path must not be used for new schedules. Email delivery is controlled by `app_settings.notify_email_enabled` and `app_settings.notify_dry_run`: an unset `NOTIFY_DRY_RUN` defers to the saved `notify_dry_run`; `1` forces dry-run; `0` forces live delivery. `0` can send real email when the email channel is enabled and Resend configuration and SDK are present, so use it only in an authorised send window. Live Resend additionally needs `RESEND_API_KEY`, `NOTIFY_EMAIL_FROM`, and the optional `resend` SDK. Live Stripe additionally needs its configured variables and the optional `stripe` SDK. Neither SDK is currently installed: enabling either feature on preview or production is no-go until its package is installed and the relevant smoke has passed.
+
+| `NOTIFY_DRY_RUN` | Effective dry-run state |
+| --- | --- |
+| unset | Use saved `app_settings.notify_dry_run` |
+| `1` | Always on; no provider delivery |
+| `0` | Always off (live); may send when the relevant channel, configuration, and SDK are enabled |
 
 ## Migration rehearsal and production preflight
 
