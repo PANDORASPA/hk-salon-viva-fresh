@@ -10,7 +10,8 @@ non-test active bootstrap administrator. The bootstrap account is intentional:
 the database prevents removal of its final active administrator, while cleanup
 removes the namespaced test administrator safely.
 
-Set these values in a local, uncommitted environment file:
+Set these values in a local, uncommitted .env.e2e.local file. Playwright and
+the seed commands load it explicitly and fill only unset environment variables.
 
 ```
 E2E_BASE_URL=http://127.0.0.1:3100
@@ -23,7 +24,8 @@ SUPABASE_SERVICE_ROLE_KEY=$E2E_SUPABASE_SERVICE_ROLE_KEY
 NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=<isolated-test-publishable-key>
 ```
 
-Run `npm run seed:e2e`, start the app with the corresponding isolated
-`NEXT_PUBLIC_*` settings, run `npm run test:e2e -- --project=chromium`, then
-run `npm run cleanup:e2e`. The tests use the `e2e_booking_platform` namespace
-by default; override it with `E2E_NAMESPACE` only for a separate isolated run.
+Start the app with the corresponding isolated NEXT_PUBLIC settings, then run
+the E2E command. Global setup verifies both the marked Supabase database and
+the guarded /api/e2e probe before any browser navigation. It seeds once and
+global teardown removes fixtures and restores business hours/settings. The
+test dates are independent, so staff-hours changes cannot pollute concurrency.

@@ -48,7 +48,7 @@ test('guest self-pay booking assigns an available employee', async ({ page }) =>
   await expect(page).toHaveURL(/\/booking\/confirm\?id=/)
   await expect(page.getByText('預約編號')).toBeVisible()
   await expect(page.getByText('服務員工')).toBeVisible()
-  await expect(page.locator('article').filter({ hasText: '服務員工' }).getByText(/E2E/)).toBeVisible()
+  await expect(page.locator('article').filter({ hasText: '服務員工' }).getByText(namespace + ' 員工 A')).toBeVisible()
 })
 
 test('simultaneous overlapping guest bookings return one 201 and one 409', async ({ page }) => {

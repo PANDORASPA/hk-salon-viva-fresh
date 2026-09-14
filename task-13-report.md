@@ -40,3 +40,13 @@ Provision a migrated, isolated Supabase database, give its `app_settings` row
 the exact marker value, retain one non-test active bootstrap administrator, and
 start the app with the matching isolated `NEXT_PUBLIC_SUPABASE_*` and service
 credentials. The exact local setup and run order are in `e2e/README.md`.
+
+## Fix round 1
+
+- Added one mandatory preflight for seed and Playwright global setup: canonical
+  host validation, marked-database query, and a marker-bound /api/e2e probe.
+- .env.e2e.local is explicitly loaded without echoing values. Cleanup uses
+  exact identity/fixture IDs and names, removes fixture notifications first,
+  and restores business hours/settings from a local runtime snapshot.
+- Browser journeys use independent dates; guest staff and package records now
+  have exact assertions.

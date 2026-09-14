@@ -1,163 +1,43 @@
-import { createClient } from '@supabase/supabase-js'
+import { readFile, unlink, writeFile } from 'node:fs/promises'
+import { existsSync } from 'node:fs'
+import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
+import { preflightFailure, runE2ERuntimePreflight } from '../lib/e2e/runtime-preflight.mjs'
 
-const DEFAULT_NAMESPACE = 'e2e_booking_platform'
+const statePath = () => join(process.cwd(), 'e2e', '.runtime-state.json')
+const fixture = c => ({ service: c.namespace + ' 創意剪髮', staff: [c.namespace + ' staff_a', c.namespace + ' staff_b'], customer: c.namespace + ' customer', package: c.namespace + ' 套票' })
+const ok = (r, m) => { if (r?.error) throw preflightFailure(m); return r?.data }
+const ids = rows => rows.map(row => row.id)
+const del = async (db, table, field, list, m) => { if (list.length) ok(await db.from(table).delete().in(field, list), m) }
+async function users(db, c) { const r = await db.auth.admin.listUsers({ page: 1, perPage: 1000 }); if (r.error) throw preflightFailure('could not list E2E identities'); return r.data.users.filter(u => [c.customerEmail, c.adminEmail].includes(u.email)) }
+async function restore(db) { if (!existsSync(statePath())) return; const state = JSON.parse(await readFile(statePath(), 'utf8')); ok(await db.from('business_hours').upsert(state.businessHours), 'could not restore business hours'); ok(await db.from('app_settings').update({ data: state.settings }).eq('id', 1), 'could not restore settings'); await unlink(statePath()) }
+async function snapshot(db) { if (existsSync(statePath())) return; const businessHours = ok(await db.from('business_hours').select('weekday,is_open,opens_at,closes_at'), 'could not snapshot business hours'); const settings = ok(await db.from('app_settings').select('data').eq('id', 1).single(), 'could not snapshot settings'); await writeFile(statePath(), JSON.stringify({ businessHours, settings: settings.data }), { encoding: 'utf8', mode: 0o600 }) }
 
-function fail(message) { throw new Error(`E2E seed refused: ${message}`) }
-
-function required(name) {
-  const value = process.env[name]
-  if (!value) fail(`${name} is required`)
-  return value
+export async function cleanupE2EFixtures({ db, config, restoreState = true } = {}) {
+  const f = fixture(config), u = await users(db, config), userIds = u.map(x => x.id)
+  const serviceIds = ids(ok(await db.from('services').select('id').eq('name', f.service), 'could not locate fixture service') || [])
+  const staffIds = ids(ok(await db.from('staff').select('id').in('name', f.staff), 'could not locate fixture staff') || [])
+  const customerIds = userIds.length ? ids(ok(await db.from('customers').select('id').in('user_id', userIds).eq('name', f.customer), 'could not locate fixture customer') || []) : []
+  const appointmentIds = serviceIds.length ? ids(ok(await db.from('appointments').select('id').in('service_id', serviceIds), 'could not locate fixture bookings') || []) : []
+  const packageIds = ids(ok(await db.from('packages').select('id').eq('name', f.package), 'could not locate fixture package') || [])
+  const customerPackageIds = customerIds.length ? ids(ok(await db.from('customer_packages').select('id').in('customer_id', customerIds), 'could not locate fixture packages') || []) : []
+  // Notification bodies contain fixture contact data; remove before appointments.
+  await del(db, 'notifications', 'booking_id', appointmentIds, 'could not delete fixture notifications'); await del(db, 'package_usage_logs', 'appointment_id', appointmentIds, 'could not delete fixture usage logs'); await del(db, 'package_redemptions', 'appointment_id', appointmentIds, 'could not delete fixture redemptions'); await del(db, 'appointments', 'id', appointmentIds, 'could not delete fixture bookings'); await del(db, 'customer_packages', 'id', customerPackageIds, 'could not delete fixture packages'); await del(db, 'customers', 'id', customerIds, 'could not delete fixture customers'); await del(db, 'staff_time_off', 'staff_id', staffIds, 'could not delete fixture time off'); await del(db, 'staff_weekly_hours', 'staff_id', staffIds, 'could not delete fixture schedules'); await del(db, 'staff_services', 'staff_id', staffIds, 'could not delete fixture mappings'); await del(db, 'staff', 'id', staffIds, 'could not delete fixture staff'); await del(db, 'packages', 'id', packageIds, 'could not delete fixture package'); await del(db, 'services', 'id', serviceIds, 'could not delete fixture service')
+  for (const user of u) { await del(db, 'admin_users', 'user_id', [user.id], 'could not delete fixture admin'); if ((await db.auth.admin.deleteUser(user.id)).error) throw preflightFailure('could not delete fixture identity') }
+  if (restoreState) await restore(db)
 }
-
-export function assertE2EUrl(name, value) {
-  let url
-  try { url = new URL(value) } catch { fail(`${name} must be an absolute URL`) }
-  if (!['http:', 'https:'].includes(url.protocol)) fail(`${name} must use http(s)`)
-  const host = url.hostname.toLowerCase()
-  const local = host === 'localhost' || host === '127.0.0.1' || host === '::1'
-  const explicitlyE2E = /(^|[.-])(e2e|test)([.-]|$)/.test(host)
-  if (!local && !explicitlyE2E) fail(`${name} is not localhost or explicitly named e2e/test (${host})`)
-  if (/(^|[.-])(prod|production|preview)([.-]|$)|vercel\.app$/.test(host)) fail(`${name} points at a production or preview host (${host})`)
-  return url
+async function bootstrap(db, c) { const admins = ok(await db.from('admin_users').select('user_id').eq('is_active', true), 'could not check bootstrap admin') || []; const existing = new Set((await users(db, c)).map(x => x.id)); if (!admins.some(x => !existing.has(x.user_id))) throw preflightFailure('a non-test active bootstrap administrator is required') }
+async function identity(db, email, password) { const found = (await db.auth.admin.listUsers({ page: 1, perPage: 1000 })).data?.users?.find(x => x.email === email); if (found) { ok(await db.auth.admin.updateUserById(found.id, { password, email_confirm: true }), 'could not update fixture identity'); return found.id }; return ok(await db.auth.admin.createUser({ email, password, email_confirm: true, user_metadata: { e2e: true } }), 'could not create fixture identity').user.id }
+export async function seedE2EFixtures({ db, config, settings } = {}) {
+  await cleanupE2EFixtures({ db, config, restoreState: false }); await bootstrap(db, config); await snapshot(db)
+  const f = fixture(config), customerUserId = await identity(db, config.customerEmail, config.password), adminUserId = await identity(db, config.adminEmail, config.password)
+  ok(await db.from('profiles').upsert([{ id: customerUserId, full_name: f.customer, phone: '61234560' }, { id: adminUserId, full_name: config.namespace + ' admin', phone: '61234561' }]), 'could not create fixture profiles'); ok(await db.from('admin_users').upsert({ user_id: adminUserId, is_active: true }), 'could not create fixture admin')
+  const service = ok(await db.from('services').insert({ name: f.service, price: 88000, duration_minutes: 60, category: 'E2E', enabled: true, published: true, sort_order: -10000 }).select().single(), 'could not create fixture service')
+  const staff = ok(await db.from('staff').insert([{ name: f.staff[0], display_name: config.namespace + ' 員工 A', colour_hex: '#1255aa', is_active: true, sort_order: -10000 }, { name: f.staff[1], display_name: config.namespace + ' 員工 B', colour_hex: '#22aa55', is_active: true, sort_order: -9999 }]).select(), 'could not create fixture staff')
+  ok(await db.from('staff_services').insert(staff.map(p => ({ staff_id: p.id, service_id: service.id }))), 'could not map fixture staff'); ok(await db.from('staff_weekly_hours').insert(staff.flatMap(p => Array.from({ length: 7 }, (_, weekday) => ({ staff_id: p.id, weekday, is_working: true, starts_at: '10:00', ends_at: '19:00' })))), 'could not create fixture schedules'); ok(await db.from('business_hours').upsert(Array.from({ length: 7 }, (_, weekday) => ({ weekday, is_open: true, opens_at: '10:00', closes_at: '19:00' }))), 'could not set fixture business hours')
+  const customer = ok(await db.from('customers').insert({ name: f.customer, phone: '61234560', email: config.customerEmail, user_id: customerUserId }).select().single(), 'could not create fixture customer'); const pack = ok(await db.from('packages').insert({ name: f.package, total_sessions: 2, validity_days: 365, price_hkd: 176000, is_active: true }).select().single(), 'could not create fixture package'); ok(await db.from('package_services').insert({ package_id: pack.id, service_id: service.id }), 'could not map fixture package'); ok(await db.from('customer_packages').insert({ customer_id: customer.id, package_id: pack.id, total_sessions: 2, sessions_remaining: 2, is_active: true, expires_at: new Date(Date.now() + 180 * 86400000).toISOString() }), 'could not create fixture package balance'); ok(await db.from('app_settings').update({ data: { ...settings, booking_buffer_minutes: 15, slot_step_minutes: 30, minimum_lead_minutes: 120, maximum_advance_days: 90, cancel_cutoff_hours: 24 } }).eq('id', 1), 'could not set fixture settings')
 }
-
-export function e2eConfig(env = process.env) {
-  const namespace = env.E2E_NAMESPACE || DEFAULT_NAMESPACE
-  if (!/^[a-z][a-z0-9_]{2,48}$/.test(namespace)) fail('E2E_NAMESPACE must be a lowercase namespace')
-  const password = requiredFrom(env, 'E2E_TEST_PASSWORD')
-  if (password.length < 12) fail('E2E_TEST_PASSWORD must be at least 12 characters')
-  const baseURL = requiredFrom(env, 'E2E_BASE_URL')
-  const supabaseUrl = requiredFrom(env, 'E2E_SUPABASE_URL')
-  assertE2EUrl('E2E_BASE_URL', baseURL)
-  assertE2EUrl('E2E_SUPABASE_URL', supabaseUrl)
-  return {
-    namespace, password, baseURL, supabaseUrl,
-    serviceRoleKey: requiredFrom(env, 'E2E_SUPABASE_SERVICE_ROLE_KEY'),
-    databaseMarker: requiredFrom(env, 'E2E_DATABASE_MARKER'),
-    customerEmail: env.E2E_CUSTOMER_EMAIL || `${namespace}.customer@example.test`,
-    adminEmail: env.E2E_ADMIN_EMAIL || `${namespace}.admin@example.test`,
-  }
-}
-
-function requiredFrom(env, name) {
-  const value = env[name]
-  if (!value) fail(`${name} is required`)
-  return value
-}
-
-function assertResult(result, context) {
-  if (result?.error) fail(`${context}: ${result.error.message}`)
-  return result?.data
-}
-
-async function markedDatabase(db, marker) {
-  const settings = assertResult(await db.from('app_settings').select('data').eq('id', 1).maybeSingle(), 'reading app_settings marker')
-  if (!settings || settings.data?.e2e_marker !== marker) {
-    fail('database marker did not match app_settings.data.e2e_marker; establish it manually in an isolated test database before seeding')
-  }
-  return settings.data
-}
-
-async function listedUsers(db) {
-  const response = await db.auth.admin.listUsers({ page: 1, perPage: 1000 })
-  if (response.error) fail(`listing auth users: ${response.error.message}`)
-  return response.data.users || []
-}
-
-async function ensureUser(db, { email, password, fullName }) {
-  const existing = (await listedUsers(db)).find((user) => user.email?.toLowerCase() === email.toLowerCase())
-  if (existing) {
-    assertResult(await db.auth.admin.updateUserById(existing.id, { password, email_confirm: true, user_metadata: { e2e: true, full_name: fullName } }), `updating ${email}`)
-    return existing.id
-  }
-  const created = assertResult(await db.auth.admin.createUser({ email, password, email_confirm: true, user_metadata: { e2e: true, full_name: fullName } }), `creating ${email}`)
-  return created.user.id
-}
-
-async function deleteRows(query, context) { assertResult(await query, context) }
-
-async function cleanup(db, config, { removeUsers = true } = {}) {
-  const prefix = `${config.namespace}%`
-  const customers = assertResult(await db.from('customers').select('id').ilike('name', prefix), 'finding namespaced customers') || []
-  const customerIds = customers.map((row) => row.id)
-  const staff = assertResult(await db.from('staff').select('id').ilike('name', prefix), 'finding namespaced staff') || []
-  const staffIds = staff.map((row) => row.id)
-  const packages = assertResult(await db.from('packages').select('id').ilike('name', prefix), 'finding namespaced packages') || []
-  const packageIds = packages.map((row) => row.id)
-
-  if (customerIds.length) {
-    const packageRows = assertResult(await db.from('customer_packages').select('id').in('customer_id', customerIds), 'finding customer packages') || []
-    const packageRowsIds = packageRows.map((row) => row.id)
-    if (packageRowsIds.length) await deleteRows(db.from('package_redemptions').delete().in('customer_package_id', packageRowsIds), 'deleting package redemptions')
-    await deleteRows(db.from('appointments').delete().in('customer_id', customerIds), 'deleting customer appointments')
-    await deleteRows(db.from('customer_packages').delete().in('customer_id', customerIds), 'deleting customer packages')
-    await deleteRows(db.from('customers').delete().in('id', customerIds), 'deleting customers')
-  }
-  await deleteRows(db.from('appointments').delete().ilike('customer_name', prefix), 'deleting guest appointments')
-  if (staffIds.length) {
-    await deleteRows(db.from('staff_time_off').delete().in('staff_id', staffIds), 'deleting staff time off')
-    await deleteRows(db.from('staff_weekly_hours').delete().in('staff_id', staffIds), 'deleting staff hours')
-    await deleteRows(db.from('staff_services').delete().in('staff_id', staffIds), 'deleting staff services')
-    await deleteRows(db.from('staff').delete().in('id', staffIds), 'deleting staff')
-  }
-  if (packageIds.length) await deleteRows(db.from('packages').delete().in('id', packageIds), 'deleting packages')
-  await deleteRows(db.from('services').delete().ilike('name', prefix), 'deleting services')
-
-  if (removeUsers) {
-    const users = await listedUsers(db)
-    for (const user of users.filter((row) => [config.customerEmail, config.adminEmail].includes(row.email))) {
-      await deleteRows(db.from('admin_users').delete().eq('user_id', user.id), `deleting test administrator ${user.email}`)
-      const result = await db.auth.admin.deleteUser(user.id)
-      if (result.error) fail(`deleting test auth identity ${user.email}: ${result.error.message}`)
-    }
-  }
-}
-
-async function requireBootstrapAdmin(db, config) {
-  const rows = assertResult(await db.from('admin_users').select('user_id').eq('is_active', true), 'checking bootstrap administrator') || []
-  const users = await listedUsers(db)
-  const testIds = new Set(users.filter((user) => [config.customerEmail, config.adminEmail].includes(user.email)).map((user) => user.id))
-  if (!rows.some((row) => !testIds.has(row.user_id))) {
-    fail('an isolated database needs one non-test active bootstrap administrator so cleanup never bypasses the final-admin safeguard')
-  }
-}
-
-async function seed(db, config, settings) {
-  await cleanup(db, config)
-  await requireBootstrapAdmin(db, config)
-  const customerUserId = await ensureUser(db, { email: config.customerEmail, password: config.password, fullName: `${config.namespace} customer` })
-  const adminUserId = await ensureUser(db, { email: config.adminEmail, password: config.password, fullName: `${config.namespace} admin` })
-  assertResult(await db.from('profiles').upsert({ id: customerUserId, full_name: `${config.namespace} customer`, phone: '61234560' }), 'upserting customer profile')
-  assertResult(await db.from('profiles').upsert({ id: adminUserId, full_name: `${config.namespace} admin`, phone: '61234561' }), 'upserting admin profile')
-  assertResult(await db.from('admin_users').upsert({ user_id: adminUserId, is_active: true }), 'upserting test administrator')
-  const service = assertResult(await db.from('services').insert({ name: `${config.namespace} 創意剪髮`, price: 88000, duration_minutes: 60, category: 'E2E', enabled: true, published: true, sort_order: -10000 }).select().single(), 'creating service')
-  const staff = assertResult(await db.from('staff').insert([
-    { name: `${config.namespace} staff_a`, display_name: `${config.namespace} 員工 A`, colour_hex: '#1255aa', is_active: true, sort_order: -10000 },
-    { name: `${config.namespace} staff_b`, display_name: `${config.namespace} 員工 B`, colour_hex: '#22aa55', is_active: true, sort_order: -9999 },
-  ]).select(), 'creating staff')
-  assertResult(await db.from('staff_services').insert(staff.map((person) => ({ staff_id: person.id, service_id: service.id }))), 'linking staff services')
-  assertResult(await db.from('staff_weekly_hours').insert(staff.flatMap((person) => Array.from({ length: 7 }, (_, weekday) => ({ staff_id: person.id, weekday, is_working: true, starts_at: '10:00', ends_at: '19:00' })))), 'creating staff schedules')
-  assertResult(await db.from('business_hours').upsert(Array.from({ length: 7 }, (_, weekday) => ({ weekday, is_open: true, opens_at: '10:00', closes_at: '19:00' }))), 'setting business hours')
-  const customer = assertResult(await db.from('customers').insert({ name: `${config.namespace} customer`, phone: '61234560', email: config.customerEmail, user_id: customerUserId }).select().single(), 'creating customer')
-  const packageRow = assertResult(await db.from('packages').insert({ name: `${config.namespace} 套票`, total_sessions: 2, validity_days: 365, price_hkd: 176000, is_active: true }).select().single(), 'creating package')
-  assertResult(await db.from('package_services').insert({ package_id: packageRow.id, service_id: service.id }), 'linking package service')
-  assertResult(await db.from('customer_packages').insert({ customer_id: customer.id, package_id: packageRow.id, total_sessions: 2, sessions_remaining: 2, is_active: true, expires_at: new Date(Date.now() + 180 * 86400000).toISOString() }), 'creating customer package')
-  assertResult(await db.from('app_settings').update({ data: { ...settings, booking_buffer_minutes: 15, slot_step_minutes: 30, minimum_lead_minutes: 120, maximum_advance_days: 90, cancel_cutoff_hours: 24 } }).eq('id', 1), 'setting deterministic booking policy')
-  console.log(`Seeded ${config.namespace}: service=${service.id}; staff=${staff.map((person) => person.id).join(',')}; customer=${customer.id}; package=${packageRow.id}`)
-}
-
-async function main() {
-  const config = e2eConfig()
-  const db = createClient(config.supabaseUrl, config.serviceRoleKey, { auth: { persistSession: false, autoRefreshToken: false } })
-  const settings = await markedDatabase(db, config.databaseMarker)
-  const command = process.argv[2] || 'seed'
-  if (command === 'seed') await seed(db, config, settings)
-  else if (command === 'cleanup') { await requireBootstrapAdmin(db, config); await cleanup(db, config); console.log(`Cleaned ${config.namespace}`) }
-  else fail(`unknown command ${command}; use seed or cleanup`)
-}
-
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  main().catch((error) => { console.error(error.message); process.exitCode = 1 })
-}
+export async function prepareE2EFixtures() { const r = await runE2ERuntimePreflight(); await seedE2EFixtures(r); return r.config }
+export async function finalCleanupE2EFixtures() { const r = await runE2ERuntimePreflight(); await cleanupE2EFixtures({ db: r.db, config: r.config }) }
+async function main() { if ((process.argv[2] || 'seed') === 'seed') await prepareE2EFixtures(); else if (process.argv[2] === 'cleanup') await finalCleanupE2EFixtures(); else throw preflightFailure('unknown command') }
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) main().catch(error => { console.error(error.message); process.exitCode = 1 })

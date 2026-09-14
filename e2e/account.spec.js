@@ -46,7 +46,7 @@ test('authenticated package booking is refunded after customer cancellation', as
   await page.getByRole('button', { name: '確認預約' }).click()
   await expect(page).toHaveURL(/\/booking\/confirm\?id=/)
   await page.goto('/account')
-  const booking = page.locator('article').filter({ hasText: serviceName })
+  const booking = page.locator('article').filter({ hasText: serviceName }).filter({ hasText: '已扣減' })
   await expect(booking).toContainText('已扣減')
   page.once('dialog', (dialog) => dialog.accept())
   await booking.getByRole('button', { name: '取消' }).click()

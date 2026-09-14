@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { assertE2EUrl, e2eConfig } from '../scripts/seed-e2e.mjs'
+import { canonicalE2EUrl, e2eConfig } from '../lib/e2e/runtime-preflight.mjs'
 
 const valid = {
   E2E_BASE_URL: 'http://127.0.0.1:3100',
@@ -11,8 +11,8 @@ const valid = {
 }
 
 test('E2E seed rejects production and preview targets before connecting', () => {
-  assert.throws(() => assertE2EUrl('E2E_BASE_URL', 'https://booking.example.com'), /not localhost or explicitly named e2e\/test/)
-  assert.throws(() => assertE2EUrl('E2E_BASE_URL', 'https://booking-e2e.vercel.app'), /production or preview/)
+  assert.throws(() => canonicalE2EUrl('E2E_BASE_URL', 'https://booking.example.com'), /not localhost/)
+  assert.throws(() => canonicalE2EUrl('E2E_BASE_URL', 'https://booking-e2e.vercel.app'), /Vercel/)
 })
 
 test('E2E seed requires separate credentials and a database marker', () => {

@@ -8,6 +8,7 @@
 /.playwright-cli/
 /playwright-report/
 /test-results/
+/e2e/.runtime-state.json
 /.worktrees/
 
 # next.js
