@@ -98,3 +98,34 @@ test('customer detail controller ignores delayed customer A after customer B was
   assert.equal(snapshots.at(-1).detail.id, 2)
   assert.equal(snapshots.at(-1).draftCustomerId, 2)
 })
+
+test('customer detail controller scopes a failed request and retry target to the current customer', async () => {
+  const { createCustomerDetailController } = await import('../app/admin/components/customer-detail-controller.js')
+  const pending = new Map(); const snapshots = []
+  const controller = createCustomerDetailController({
+    load: (id, signal) => new Promise((resolve, reject) => { pending.set(id, { resolve, reject, signal }) }),
+    publish: value => snapshots.push(value),
+  })
+  controller.select(1); controller.select(2)
+  pending.get(1).reject(new Error('A 載入失敗')); await new Promise(resolve => setImmediate(resolve))
+  assert.equal(snapshots.at(-1).draftCustomerId, 2)
+  assert.equal(snapshots.at(-1).error, '')
+  pending.get(2).reject(new Error('B 載入失敗')); await new Promise(resolve => setImmediate(resolve))
+  assert.deepEqual(snapshots.at(-1), { loading: false, error: 'B 載入失敗', detail: null, draftCustomerId: 2 })
+  controller.select(snapshots.at(-1).draftCustomerId)
+  pending.get(2).resolve({ id: 2, name: 'B' }); await new Promise(resolve => setImmediate(resolve))
+  assert.deepEqual(snapshots.at(-1), { loading: false, error: '', detail: { id: 2, name: 'B' }, draftCustomerId: 2 })
+})
+
+test('mapping loader blocks save after failure and only latest retry enables it', async () => {
+  const { createMappingLoadController } = await import('../app/admin/components/mapping-load-controller.js')
+  const pending = []; const states = []
+  const controller = createMappingLoadController({ load: signal => new Promise((resolve, reject) => pending.push({ resolve, reject, signal })), publish: state => states.push(state) })
+  controller.reload(); pending[0].reject(new Error('載入失敗')); await new Promise(resolve => setImmediate(resolve))
+  assert.equal(states.at(-1).error, '載入失敗')
+  assert.equal(states.at(-1).ready, false)
+  controller.reload(); controller.reload(); pending[1].resolve([{ id: 1 }]); await new Promise(resolve => setImmediate(resolve))
+  assert.equal(states.at(-1).ready, false)
+  pending[2].resolve([]); await new Promise(resolve => setImmediate(resolve))
+  assert.deepEqual(states.at(-1), { loading: false, error: '', rows: [], ready: true })
+})
