@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import test from 'node:test'
-import { adminId, bookingDatabase, createSql, futureSlot, rpcClient } from './helpers/booking-database.mjs'
+import { adminId, bookingDatabase, callSql, createSql, futureSlot, rpcClient } from './helpers/booking-database.mjs'
 
 const root = new URL('../', import.meta.url)
 const read = path => readFile(new URL(path, root), 'utf8')
@@ -58,6 +58,20 @@ test('admin appointment route preserves the atomic command when a scheduling con
   assert.deepEqual((await db.query('select starts_at, staff_id from public.appointments where id=$1', [original.id])).rows[0], {
     starts_at: original.starts_at, staff_id: 1,
   })
+})
+
+test('audited admin booking commands commit their audit or roll the appointment mutation back', async t => {
+  // Mutation caught: a best-effort route audit that leaves an admin-created or
+  // cancelled booking durable after its required audit write fails.
+  const db = await bookingDatabase(t)
+  const startsAt = await futureSlot(db)
+  const input = { p_actor_id: adminId, p_service_id: 1, p_starts_at: startsAt, p_staff_preference: '1', p_customer_name: 'Audit Guest', p_customer_phone: '91234567', p_customer_email: null, p_customer_id: null, p_customer_package_id: null, p_confirmation_token_hash: 'a'.repeat(64), p_customer_notes: null }
+  const created = await callSql(db, 'admin_create_appointment_audited', input)
+  assert.equal(created.source, 'admin')
+  assert.deepEqual((await db.query("select action, actor_id from public.admin_audit_logs where action='appointment.create' order by id desc limit 1")).rows, [{ action: 'appointment.create', actor_id: adminId }])
+  await db.exec(`create function public.reject_appointment_audit() returns trigger language plpgsql as $$ begin if new.action='appointment.create' then raise exception 'audit_insert_failed'; end if; return new; end $$; create trigger reject_appointment_audit before insert on public.admin_audit_logs for each row execute function public.reject_appointment_audit();`)
+  await assert.rejects(callSql(db, 'admin_create_appointment_audited', { ...input, p_starts_at: await futureSlot(db, 4) }), /audit_insert_failed/)
+  assert.equal((await db.query("select count(*)::int as count from public.appointments where customer_name='Audit Guest'")).rows[0].count, 1)
 })
 
 test('operations workspace declares staff, status and service filtering with an assigned-staff calendar row', async () => {

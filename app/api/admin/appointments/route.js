@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server.js'
-import { adminContext, audit, jsonError } from '../../../../lib/admin/salon-api.js'
+import { adminContext, jsonError } from '../../../../lib/admin/salon-api.js'
 import { guardMutationRequest } from '../../../../lib/security/request-guards.js'
-import { BookingCommandError, bookingCommandResponse, createAppointment, rescheduleAppointment } from '../../../../lib/booking/commands.js'
+import { BookingCommandError, bookingCommandResponse, cancelAdminAppointment, createAppointment, rescheduleAppointment, setAdminAppointmentStatus } from '../../../../lib/booking/commands.js'
 import { sendBookingNotification } from '../../../../lib/notifications/notify.js'
 
 const statuses = new Set(['pending', 'confirmed', 'completed', 'cancelled', 'no_show'])
@@ -34,7 +34,8 @@ export function createAdminAppointmentsHandlers({
   guardMutationRequest: guardMutation = (...args) => guardMutationRequest(...args),
   createAppointment: create = createAppointment,
   rescheduleAppointment: reschedule = rescheduleAppointment,
-  audit: writeAudit = audit,
+  cancelAppointment: cancel = cancelAdminAppointment,
+  setStatus: setStatus = setAdminAppointmentStatus,
   notify = sendBookingNotification,
 } = {}) {
   return {
@@ -59,10 +60,10 @@ export function createAdminAppointmentsHandlers({
         const context = await resolveContext()
         if (context.response) return context.response
         const body = await request.json().catch(() => { throw new BookingCommandError('validation_error') })
-        const result = await create(context.db, { ...commandInput(body || {}), actorUserId: context.auth.user.id })
-        await writeAudit(context.db, context.auth.user, 'appointment.create', 'appointments', result.appointment.id, { source: 'admin' })
-        try { await notify({ event: 'booking_confirmation', booking: result.appointment }) } catch { /* booking remains committed */ }
-        return NextResponse.json({ appointment: result.appointment }, { status: 201 })
+        const result = await create(context.db, { ...commandInput(body || {}), actorUserId: context.auth.user.id, audited: true })
+        let notificationWarning = false
+        try { const delivery = await notify({ event: 'booking_confirmation', booking: result.appointment }); notificationWarning = delivery?.outcomePersisted === false } catch { notificationWarning = true }
+        return NextResponse.json({ appointment: result.appointment, notificationWarning }, { status: 201 })
       } catch (error) { return bookingCommandResponse(error) }
     },
     async PATCH(request) {
@@ -75,17 +76,15 @@ export function createAdminAppointmentsHandlers({
         const id = Number(body?.id)
         if (!Number.isSafeInteger(id) || id < 1) throw new BookingCommandError('validation_error')
         if (body.startsAt) {
-          const appointment = await reschedule(context.db, { appointmentId: id, startsAt: body.startsAt, staffPreference: body.staffPreference ?? body.staffId, actorUserId: context.auth.user.id })
-          await writeAudit(context.db, context.auth.user, 'appointment.reschedule', 'appointments', id, { startsAt: appointment.starts_at, staffId: appointment.staff_id })
-          try { await notify({ event: 'booking_reschedule', booking: appointment }) } catch { /* booking remains committed */ }
-          return NextResponse.json({ appointment })
+          const appointment = await reschedule(context.db, { appointmentId: id, startsAt: body.startsAt, staffPreference: body.staffPreference ?? body.staffId, actorUserId: context.auth.user.id, audited: true })
+          let notificationWarning = false
+          try { const delivery = await notify({ event: 'booking_reschedule', booking: appointment }); notificationWarning = delivery?.outcomePersisted === false } catch { notificationWarning = true }
+          return NextResponse.json({ appointment, notificationWarning })
         }
-        if (!statuses.has(body.status)) throw new BookingCommandError('validation_error')
-        const update = { status: body.status, admin_notes: String(body.adminNotes || '').slice(0, 2000) }
-        const { data, error } = await context.db.from('appointments').update(update).eq('id', id).select(appointmentSelect).single()
-        if (error) return jsonError('Unable to update appointment.', 500)
-        await writeAudit(context.db, context.auth.user, 'appointment.update', 'appointments', id, { status: update.status })
-        return NextResponse.json({ appointment: asAppointment(data) })
+        const appointment = body.status === 'cancelled'
+          ? await cancel(context.db, { appointmentId: id, actorUserId: context.auth.user.id })
+          : await setStatus(context.db, { appointmentId: id, status: body.status, adminNotes: body.adminNotes, actorUserId: context.auth.user.id })
+        return NextResponse.json({ appointment })
       } catch (error) { return bookingCommandResponse(error) }
     },
   }
