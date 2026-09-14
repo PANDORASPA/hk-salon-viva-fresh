@@ -50,3 +50,11 @@ credentials. The exact local setup and run order are in `e2e/README.md`.
   and restores business hours/settings from a local runtime snapshot.
 - Browser journeys use independent dates; guest staff and package records now
   have exact assertions.
+
+## Fix round 2
+
+- The probe is explicitly enabled only for E2E and hard-denies production and
+  preview runtime signals. Runtime snapshots bind database origin, marker,
+  namespace, and a unique run id before any state mutation.
+- Fixture customer cleanup now keys off exact E2E auth-user IDs regardless of
+  profile name, and restores the original business-hour row set exactly.

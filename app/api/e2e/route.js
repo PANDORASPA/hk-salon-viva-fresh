@@ -5,7 +5,8 @@ import { getServiceClient } from '../../../lib/supabase/service.js'
 export function createE2EProbeHandler({ env = process.env, getServiceClient: serviceClient = getServiceClient } = {}) {
   return async function e2eProbe() {
     const marker = env.E2E_DATABASE_MARKER
-    if (!marker || !env.NEXT_PUBLIC_SUPABASE_URL) return new NextResponse(null, { status: 404 })
+    if (env.NODE_ENV === 'production' || ['production', 'preview'].includes(env.VERCEL_ENV)
+      || env.E2E_PROBE_ENABLED !== '1' || !marker || !env.NEXT_PUBLIC_SUPABASE_URL) return new NextResponse(null, { status: 404 })
     let supabase
     try { supabase = canonicalE2EUrl('NEXT_PUBLIC_SUPABASE_URL', env.NEXT_PUBLIC_SUPABASE_URL) }
     catch { return new NextResponse(null, { status: 404 }) }
