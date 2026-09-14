@@ -77,7 +77,7 @@ export default function BookingsClient({ initialBookings = [] }) {
           const active = !['cancelled', 'completed', 'no_show'].includes(booking.status)
           const redemption = booking.packageRedemption
           return (
-            <article key={booking.id}>
+            <article key={booking.id} aria-label={`預約 ${booking.reference || booking.id}`}>
               <div>
                 <strong>{booking.service?.name || `預約 ${booking.reference || `#${booking.id}`}`}</strong>
                 <p>{bookingTime(booking.startsAt)}</p>

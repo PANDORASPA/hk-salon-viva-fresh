@@ -58,3 +58,36 @@ credentials. The exact local setup and run order are in `e2e/README.md`.
   namespace, and a unique run id before any state mutation.
 - Fixture customer cleanup now keys off exact E2E auth-user IDs regardless of
   profile name, and restores the original business-hour row set exactly.
+
+## Fix round 2 follow-up
+
+- Global setup becomes cleanup-ready immediately after its read-only runtime
+  preflight. If seeding fails partway through, it invokes the same guarded
+  cleanup and reports both errors when cleanup also fails. Seed mutation work
+  uses the same failure-unwind path, while cleanup restores business settings
+  even when a prior fixture delete failed.
+- The snapshot must match the canonical Supabase origin, marker, namespace,
+  and non-empty run id. A mismatched stale local snapshot is removed and the
+  run is refused before a database mutation. Restoration clears all business
+  hour rows before upserting the original rows, so originally absent weekdays
+  remain absent; it cannot restore settings across database bindings.
+- Fixture audit records are deleted only by exact fixture actor-user IDs.
+  Customer cleanup remains anchored to exact fixture auth IDs before those
+  identities are deleted.
+- The schedule journey preserves and restores the selected weekday's exact
+  prior working flag and time values in a browser-test `finally` block. Its
+  public assertion uses its own date, so the guest and concurrency dates are
+  independent. The package-refund journey uses the generated confirmation
+  reference as the account article's accessible name and asserts the exact
+  seeded package balance before and after cancellation, not a mutable status
+  phrase.
+
+## Follow-up verification
+
+- Focused E2E-safety tests: 13 passed, 0 failed.
+- Full unit suite: 284 passed, 0 failed.
+- `npm run build`: succeeded. Existing optional `resend`/`stripe` dynamic
+  import and custom Cache-Control warnings remain unchanged.
+- `npx playwright test --list`: 4 browser journeys discovered. The no-credential
+  browser run deliberately stopped in global preflight with
+  `E2E_TEST_PASSWORD is required`, before navigation or a database mutation.
