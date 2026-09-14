@@ -10,11 +10,24 @@ const valid = {
   E2E_TEST_PASSWORD: 'a-long-test-password',
   E2E_PROBE_ENABLED: '1',
   NEXT_PUBLIC_SUPABASE_URL: 'http://127.0.0.1:54321',
+  NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: 'test-publishable-key',
   SUPABASE_SERVICE_ROLE_KEY: 'test-service-key',
 }
 
 test('E2E launcher refuses missing dev probe configuration before spawning', () => {
   assert.throws(() => createE2ELauncher({ env: { ...valid, E2E_PROBE_ENABLED: '' }, spawn: () => { throw new Error('must not spawn') } }), /E2E_PROBE_ENABLED=1/)
+})
+
+test('E2E launcher refuses a missing public Supabase key before spawning', () => {
+  let spawned = false
+  assert.throws(() => createE2ELauncher({ env: { ...valid, NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: '', NEXT_PUBLIC_SUPABASE_ANON_KEY: '' }, spawn: () => { spawned = true } }), /NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY or NEXT_PUBLIC_SUPABASE_ANON_KEY/)
+  assert.equal(spawned, false)
+})
+
+test('E2E launcher refuses HTTPS loopback before spawning ordinary Next dev', () => {
+  let spawned = false
+  assert.throws(() => createE2ELauncher({ env: { ...valid, E2E_BASE_URL: 'https://127.0.0.1:3100' }, spawn: () => { spawned = true } }), /must use http/)
+  assert.equal(spawned, false)
 })
 
 test('E2E launcher starts Next dev with the validated isolated environment', () => {

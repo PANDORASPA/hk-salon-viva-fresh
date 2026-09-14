@@ -122,3 +122,22 @@ credentials. The exact local setup and run order are in `e2e/README.md`.
 - Playwright lists 4 journeys. Both `npm run start:e2e` and `npm run test:e2e`
   deliberately refuse without credentials, before server startup/navigation or
   a database mutation.
+
+## Fix round 4
+
+- The local launcher now refuses before spawning unless either
+  `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` or `NEXT_PUBLIC_SUPABASE_ANON_KEY` is
+  present. It also requires `E2E_BASE_URL` to use HTTP loopback, matching the
+  ordinary `next dev` server it launches rather than implying unsupported HTTPS.
+- Injected-spawn tests prove missing public keys and HTTPS targets do not spawn
+  a process, while the documented HTTP configuration with a public key launches
+  `next dev`.
+
+## Round 4 verification
+
+- Focused E2E-safety tests: 19 passed, 0 failed.
+- Full unit suite: 289 passed, 0 failed.
+- `npm run build`: succeeded; existing optional `resend`/`stripe` and custom
+  Cache-Control warnings remain unchanged. Playwright lists 4 journeys; both
+  the launcher and browser suite refuse without credentials before external
+  startup, navigation, or mutation.

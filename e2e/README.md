@@ -31,8 +31,9 @@ In one terminal, start the isolated development server with the same local file:
 npm run start:e2e
 ```
 
-This cross-platform launcher loads `.env.e2e.local`, requires the local
-loopback base URL, matching public/service Supabase settings, and
+This cross-platform launcher loads `.env.e2e.local`, requires an HTTP loopback
+base URL (ordinary `next dev` does not configure HTTPS), matching public/service
+Supabase settings, at least one public publishable/anon key, and
 `E2E_PROBE_ENABLED=1`; it runs `next dev`, never `next start`. In a second
 terminal, run:
 
