@@ -2,10 +2,10 @@
 
 import Link from 'next/link'
 
-export default function ContactStep({ contact, authenticated, onChange }) {
+export default function ContactStep({ contact, authenticated, onChange, headingRef }) {
   return (
     <section aria-labelledby="booking-contact-title">
-      <h2 id="booking-contact-title" className="booking-wizard-title">聯絡方式</h2>
+      <h2 id="booking-contact-title" className="booking-wizard-title" ref={headingRef} tabIndex="-1">聯絡方式</h2>
       {authenticated ? (
         <p className="booking-wizard-intro">登入帳戶後可在下一步選擇可用套票。</p>
       ) : (

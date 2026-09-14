@@ -442,6 +442,7 @@ body {
 .booking-progress li[aria-current="step"] { color: var(--text); border-color: var(--gold); font-weight: 700; }
 .booking-wizard-title { font-family: Georgia, serif; font-size: 26px; line-height: 1.2; margin-bottom: 8px; }
 .booking-wizard-intro { color: var(--text-muted); font-size: 15px; margin-bottom: 20px; }
+.booking-choice-grid, .booking-slot-grid { border: 0; min-inline-size: 0; padding: 0; }
 .booking-choice-grid { display: grid; gap: 10px; }
 .booking-choice, .booking-slot {
   appearance: none;
@@ -456,6 +457,9 @@ body {
   font: inherit;
   text-align: left;
 }
+.booking-choice { display: block; }
+.booking-choice input, .booking-slot input { accent-color: var(--gold); height: 20px; margin: 0 10px 0 0; vertical-align: middle; width: 20px; }
+.booking-slot { display: flex; align-items: center; justify-content: center; }
 .booking-choice:hover, .booking-slot:hover { border-color: var(--gold-light); background: var(--cream); }
 .booking-choice.is-selected, .booking-slot.is-selected { border-color: var(--gold); background: #fbf7f0; box-shadow: inset 0 0 0 1px var(--gold); }
 .booking-choice-name { display: block; font-weight: 650; }
@@ -501,6 +505,7 @@ body {
 .booking-payment-option strong, .booking-payment-option small { display: block; }
 .booking-payment-option small { color: var(--text-muted); }
 .booking-terms { font-size: 14px; margin-bottom: 18px; }
+.booking-sr-only { height: 1px; margin: -1px; overflow: hidden; padding: 0; position: absolute; width: 1px; clip: rect(0, 0, 0, 0); white-space: nowrap; }
 @media (min-width: 641px) {
   .booking-wizard { padding: 32px; }
   .booking-choice-grid { grid-template-columns: repeat(2, 1fr); }

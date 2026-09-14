@@ -1,9 +1,9 @@
 'use client'
 
-export default function TimeStep({ date, minDate, slots, selectedSlot, loading, message, onDateChange, onSelect }) {
+export default function TimeStep({ date, minDate, slots, selectedSlot, loading, message, onDateChange, onSelect, headingRef }) {
   return (
     <section aria-labelledby="booking-time-title">
-      <h2 id="booking-time-title" className="booking-wizard-title">選擇日期及時間</h2>
+      <h2 id="booking-time-title" className="booking-wizard-title" ref={headingRef} tabIndex="-1">選擇日期及時間</h2>
       <div className="booking-field">
         <label htmlFor="booking-date">日期</label>
         <input id="booking-date" type="date" value={date} min={minDate} onChange={(event) => onDateChange(event.target.value)} />
@@ -12,23 +12,21 @@ export default function TimeStep({ date, minDate, slots, selectedSlot, loading, 
         {loading ? '正在載入可預約時段…' : message}
       </p>
       {!loading && slots.length > 0 && (
-        <div className="booking-slot-grid" role="radiogroup" aria-label="可預約時段">
+        <fieldset className="booking-slot-grid">
+          <legend className="booking-sr-only">可預約時段</legend>
           {slots.map((slot) => {
             const selected = selectedSlot === slot.iso
             return (
-              <button
+              <label
                 key={slot.iso}
-                type="button"
-                role="radio"
-                aria-checked={selected}
                 className={`booking-slot ${selected ? 'is-selected' : ''}`}
-                onClick={() => onSelect(slot.iso)}
               >
+                <input type="radio" name="time-slot" value={slot.iso} checked={selected} onChange={() => onSelect(slot.iso)} />
                 {slot.label}
-              </button>
+              </label>
             )
           })}
-        </div>
+        </fieldset>
       )}
     </section>
   )

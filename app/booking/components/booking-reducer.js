@@ -36,6 +36,8 @@ export function bookingReducer(state, action) {
       return { ...state, submitting: true, error: '' }
     case 'SUBMIT_ERROR':
       return { ...state, submitting: false, error: action.error || '預約失敗，請稍後再試。', conflict: action.status === 409 }
+    case 'SLOT_CONFLICT':
+      return { ...state, step: 3, startsAt: '', submitting: false, conflict: true, error: action.error || '這個時段剛被預約，請選擇另一個時間。' }
     default:
       return state
   }
