@@ -268,7 +268,7 @@ test('create route calls the atomic command, ignores browser identity, and retur
   const db = await bookingDatabase(t)
   const { createAppointmentsHandler } = await import('../app/api/appointments/route.js')
   assert.equal(typeof createAppointmentsHandler, 'function')
-  const handler = createAppointmentsHandler({ getServiceClient: () => rpcClient(db), notify: async () => {} })
+  const handler = createAppointmentsHandler({ getServiceClient: () => rpcClient(db), notify: async () => {}, resolveCustomer: async () => null })
   const body = { serviceId: 1, staffPreference: 1, startsAt: await futureSlot(db), customerName: 'Route Guest', customerPhone: '91234567', customerId: 2, actorUserId: otherId, source: 'admin' }
   const result = await handler(request(body))
   assert.equal(result.status, 201)
@@ -282,7 +282,7 @@ test('create route calls the atomic command, ignores browser identity, and retur
   assert.equal((await handler(request({ ...body, customerPackageId: 1 }))).status, 401)
   assert.equal((await handler(request({ ...body, startsAt: 'invalid' }))).status, 400)
   assert.equal((await handler(new Request('http://localhost/api/appointments', { method:'POST', headers:{origin:'http://localhost'}, body:'{' }))).status, 400)
-  const failing = createAppointmentsHandler({ getServiceClient: () => ({ rpc: async () => ({ error: { code: 'XX000', message: 'private database details' } }) }), notify: async () => {} })
+  const failing = createAppointmentsHandler({ getServiceClient: () => ({ rpc: async () => ({ error: { code: 'XX000', message: 'private database details' } }) }), notify: async () => {}, resolveCustomer: async () => null })
   const failure = await failing(request(body))
   assert.equal(failure.status, 500)
   assert.equal((await failure.json()).code, 'internal_error')

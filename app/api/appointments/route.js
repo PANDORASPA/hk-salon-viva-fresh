@@ -1,13 +1,17 @@
 import { getServiceClient } from '../../../lib/supabase/service.js'
+import { getServerClient } from '../../../lib/supabase/server.js'
+import { resolveAuthenticatedCustomer } from '../../../lib/customers/identity.js'
 import { guardMutationRequest } from '../../../lib/security/request-guards.js'
 import { BookingCommandError, bookingCommandResponse, createAppointment } from '../../../lib/booking/commands.js'
 import { sendBookingNotification } from '../../../lib/notifications/notify.js'
 
 export function createAppointmentsHandler({
   getServiceClient: serviceClient = getServiceClient,
-  // Task 6 supplies the auth-bound resolver. Until then guests can book and
-  // package use fails closed. Request customerId is never an identity source.
-  resolveCustomer = async () => null,
+  getServerClient: serverClient = getServerClient,
+  resolveCustomer = async () => {
+    const customer = await resolveAuthenticatedCustomer(await serverClient(), await serviceClient())
+    return customer ? { customer, actorUserId: customer.user_id } : null
+  },
   notify = sendBookingNotification,
 } = {}) {
   return async function appointmentsHandler(request) {
@@ -27,7 +31,12 @@ export function createAppointmentsHandler({
         serviceId: body.serviceId,
         staffPreference: body.staffPreference ?? body.staffId,
         startsAt: body.startsAt,
-        customer: authenticatedCustomer || { name: body.customerName, phone: body.customerPhone, email: body.customerEmail },
+        // Booking contact is distinct from identity. An email-only owned profile
+        // may need a submitted phone, but the body can never replace its ID.
+        customer: authenticatedCustomer ? {
+          ...authenticatedCustomer,
+          phone: authenticatedCustomer.phone || body.customerPhone,
+        } : { name: body.customerName, phone: body.customerPhone, email: body.customerEmail },
         actorUserId,
         customerPackageId: body.customerPackageId ?? null,
         source: actorUserId ? 'account' : 'web',

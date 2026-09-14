@@ -33,7 +33,8 @@ test('canonical booking routes query appointments, not legacy bookings, at runti
   } }
   const userDb = { auth: { getUser: async () => ({ data: { user: { id: 'user-1' } } }) }, from(table) { tables.push(table); return query(table) } }
   availabilityRoute.__setAvailabilityRouteDependencies({ getServiceClient: () => db })
-  appointmentsRoute.__setAppointmentsRouteDependencies({ getServiceClient: () => db })
+  appointmentsRoute.__setAppointmentsRouteDependencies({ getServiceClient: () => db,
+    getServerClient: () => ({ auth: { getUser: async () => ({ data: { user: null }, error: null }) } }) })
   accountRoute.__setAccountBookingRouteDependencies({ getServerClient: async () => userDb, getServiceClient: () => db })
 
   const availability = await availabilityRoute.GET(new Request('http://localhost/api/availability?date=2099-09-10&serviceId=1'))

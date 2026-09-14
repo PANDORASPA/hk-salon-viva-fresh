@@ -1,6 +1,8 @@
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { getServerClient } from '../../lib/supabase/server'
+import { getServiceClient } from '../../lib/supabase/service'
+import { resolveAuthenticatedCustomer, usableCustomerPackages } from '../../lib/customers/identity'
 import SignOutButton from './SignOutButton'
 import BookingsClient from './BookingsClient'
 import Nav from '../components/i18n/Nav'
@@ -14,20 +16,19 @@ export default async function AccountPage() {
   const locale = getLocale()
   const db = await getServerClient()
   const { data: { user } } = await db.auth.getUser()
-  if (!user) redirect(`/signin?redirectTo=/account`)
+  if (!user || user.is_anonymous) redirect(`/signin?redirectTo=/account`)
+  const serviceDb = getServiceClient()
+  const customer = await resolveAuthenticatedCustomer(db, serviceDb)
+  if (!customer) redirect(`/signin?redirectTo=/account`)
 
-  const [{ data: profile }, { data: appointments }, { data: customerPackages }] = await Promise.all([
+  const [{ data: profile }, { data: appointments }, customerPackages] = await Promise.all([
     db.from('profiles').select('*').eq('id', user.id).maybeSingle(),
     db.from('appointments')
       .select('id, starts_at, status, customer_package_id, services(name, duration_minutes)')
       .eq('user_id', user.id)
       .order('starts_at', { ascending: false })
       .limit(50),
-    db.from('customer_packages')
-      .select('id, sessions_remaining, total_sessions, is_active, expires_at, packages(name, colour_hex)')
-      .eq('customer_id', user.id)
-      .order('created_at', { ascending: false })
-      .limit(20),
+    usableCustomerPackages(serviceDb, customer.id),
   ])
 
   return (
