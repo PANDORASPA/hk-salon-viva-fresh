@@ -1,6 +1,7 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { createBookingCalendarController } from './booking-calendar-controller.js'
 
 const hkDay = date => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Hong_Kong', year: 'numeric', month: '2-digit', day: '2-digit' }).format(date)
 const validDay = value => /^\d{4}-\d{2}-\d{2}$/.test(value || '') && Number.isFinite(new Date(`${value}T00:00:00+08:00`).getTime())
@@ -14,36 +15,32 @@ export default function BookingCalendar() {
   const [mode, setMode] = useState('day'), [day, setDay] = useState(() => hkDay(new Date()))
   const [staff, setStaff] = useState([]), [services, setServices] = useState([]), [rows, setRows] = useState([])
   const [staffFilter, setStaffFilter] = useState(''), [statusFilter, setStatusFilter] = useState(''), [serviceFilter, setServiceFilter] = useState('')
-  const [loading, setLoading] = useState(true), [error, setError] = useState(''), [showCreate, setShowCreate] = useState(false)
+  const [loading, setLoading] = useState(true), [error, setError] = useState(''), [showCreate, setShowCreate] = useState(false), [notificationWarning, setNotificationWarning] = useState(false)
   const endDay = useMemo(() => addDays(day, mode === 'week' ? 6 : 0), [day, mode])
-  const load = async () => {
-    setLoading(true); setError('')
-    try {
-      const filters = new URLSearchParams({ from: day, to: endDay })
-      if (staffFilter) filters.set('staffId', staffFilter)
-      if (statusFilter) filters.set('status', statusFilter)
-      if (serviceFilter) filters.set('serviceId', serviceFilter)
-      const [appointments, operations] = await Promise.all([fetch(`/api/admin/appointments?${filters}`), fetch('/api/admin/operations')])
-      const [appointmentData, operationData] = await Promise.all([appointments.json().catch(() => ({})), operations.json().catch(() => ({}))])
-      if (!appointments.ok) throw new Error(appointmentData.error || '未能載入預約。')
-      if (!operations.ok) throw new Error(operationData.error || '未能載入篩選資料。')
-      setRows(appointmentData.appointments || []); setStaff(operationData.staff || []); setServices(operationData.services || [])
-    } catch (cause) { setError(cause.message) } finally { setLoading(false) }
-  }
-  useEffect(() => { load() }, [day, endDay, staffFilter, statusFilter, serviceFilter])
+  const criteria = useMemo(() => ({ day, endDay, staffFilter, statusFilter, serviceFilter }), [day, endDay, staffFilter, statusFilter, serviceFilter])
+  const calendar = useRef(null)
+  if (!calendar.current) calendar.current = createBookingCalendarController({
+    onLoadStart: () => { setLoading(true); setError('') },
+    onLoadSuccess: data => { setRows(data.rows); setStaff(data.staff); setServices(data.services) },
+    onLoadFailure: cause => setError(cause.message),
+    onLoadFinish: () => setLoading(false),
+    onMutationSuccess: result => setNotificationWarning(Boolean(result.notificationWarning)),
+    onMutationFailure: cause => setError(cause.message),
+  })
+  const load = () => calendar.current.load(criteria)
+  useEffect(() => { load(); return () => calendar.current.cancel() }, [criteria])
   const save = async (event, method) => {
-    event.preventDefault(); setError('')
+    event.preventDefault(); setError(''); setNotificationWarning(false)
     const formNode = event.currentTarget; const form = Object.fromEntries(new FormData(formNode));
     const payload = { ...form, id: form.id ? Number(form.id) : undefined, serviceId: form.serviceId ? Number(form.serviceId) : undefined, staffPreference: form.staffPreference || 'any', startsAt: asHkIso(form.startsAt) }
     try {
-      const response = await fetch('/api/admin/appointments', { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
-      const result = await response.json().catch(() => ({})); if (!response.ok) throw new Error(result.error || '未能儲存預約。')
+      await calendar.current.mutate(method, payload)
       formNode.reset(); setShowCreate(false); load()
-    } catch (cause) { setError(cause.message) }
+    } catch {}
   }
   const changeStatus = async (id, status) => {
-    setError('')
-    try { const response = await fetch('/api/admin/appointments', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, status }) }); const result = await response.json().catch(() => ({})); if (!response.ok) throw new Error(result.error || '未能更新狀態。'); load() } catch (cause) { setError(cause.message) }
+    setError(''); setNotificationWarning(false)
+    try { await calendar.current.mutate('PATCH', { id, status }); load() } catch {}
   }
   return (
     <section className="admin-module" aria-labelledby="calendar-title">
@@ -58,6 +55,7 @@ export default function BookingCalendar() {
       </div>
       {showCreate ? <form className="admin-create-booking" onSubmit={event => save(event, 'POST')}><label>服務<select name="serviceId" required><option value="">選擇服務</option>{services.map(service => <option key={service.id} value={service.id}>{service.name}</option>)}</select></label><label>員工<select name="staffPreference"><option value="any">自動安排</option>{staff.map(person => <option key={person.id} value={person.id}>{person.name}</option>)}</select></label><label>時間<input name="startsAt" type="datetime-local" required /></label><label>客戶姓名<input name="customerName" required /></label><label>電話<input name="customerPhone" required /></label><button className="admin-action">建立預約</button></form> : null}
       {error ? <p role="alert" className="salon-error">{error}</p> : null}
+      {notificationWarning ? <p role="status" className="salon-error">預約已儲存，但通知結果未能完整記錄；請到營運總覽跟進。</p> : null}
       {loading ? <p aria-busy="true">正在載入預約…</p> : rows.length ? <div className="admin-calendar-table"><table><caption>{mode === 'week' ? `${day} 至 ${endDay}` : day}</caption><thead><tr><th>時間</th><th>客戶</th><th>服務</th><th>員工</th><th>狀態</th><th>操作</th></tr></thead><tbody>{rows.map(row => <tr key={row.id}><td>{label(row.startsAt)}</td><td>{row.customerName}<small>{row.customerPhone}</small></td><td>{row.serviceName}</td><td>{row.staffName}</td><td><span className={`status ${row.status}`}>{statuses.find(([value]) => value === row.status)?.[1] || row.status}</span></td><td><details><summary>改期及狀態</summary><form onSubmit={event => save(event, 'PATCH')}><input type="hidden" name="id" value={row.id} /><label>新時間<input name="startsAt" type="datetime-local" defaultValue={toInput(row.startsAt)} required /></label><label>安排員工<select aria-label="改期安排員工" name="staffPreference" defaultValue={String(row.staffId || 'any')}><option value="any">自動安排</option>{staff.map(person => <option key={person.id} value={person.id}>{person.name}</option>)}</select></label><button className="admin-action">儲存改期</button></form>{row.status === 'pending' ? <div><button className="admin-action" onClick={() => changeStatus(row.id, 'confirmed')}>確認</button></div> : null}{['pending','confirmed'].includes(row.status) ? <div><button className="admin-action" onClick={() => changeStatus(row.id, 'cancelled')}>取消</button>{row.status === 'confirmed' ? <button className="admin-action" onClick={() => changeStatus(row.id, 'completed')}>完成</button> : null}<button className="admin-action" onClick={() => changeStatus(row.id, 'no_show')}>未出席</button></div> : null}</details></td></tr>)}</tbody></table></div> : <p className="admin-empty">這段時間沒有符合篩選的預約。</p>}
     </section>
   )

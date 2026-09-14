@@ -76,6 +76,33 @@ test('dashboard failure classifier consumes the persisted notification outcome f
   assert.equal(__testing.failed({ whatsapp: { ok: false, mode: 'dry_run' } }), false)
 })
 
+test('operations handler lists persistence-pending notifications but ignores disabled channels', async () => {
+  // Mutation caught: treating a durable persistence warning as neutral, or
+  // counting intentionally disabled delivery channels as failures.
+  const notificationRows = [
+    { id: 1, event: 'booking_confirmation', booking_id: 41, delivered_at: '2026-09-14T01:00:00.000Z', channel_results: { supabase: { ok: false, mode: 'persistence_pending', reason: 'channel_results_pending' } } },
+    { id: 2, event: 'booking_confirmation', booking_id: 42, delivered_at: '2026-09-14T02:00:00.000Z', channel_results: { console: { ok: false, mode: 'disabled' }, email: { ok: false, mode: 'disabled' } } },
+  ]
+  let appointmentQueries = 0
+  const result = value => {
+    const query = {
+      select: () => query, eq: () => query, gte: () => query, lt: () => query,
+      order: () => query, limit: () => query,
+      then: (resolve, reject) => Promise.resolve(value).then(resolve, reject),
+    }
+    return query
+  }
+  const db = { from(table) {
+    if (table === 'appointments') return result({ count: appointmentQueries++ === 0 ? 1 : 0, error: null })
+    if (table === 'notifications') return result({ data: notificationRows, error: null })
+    return result({ data: [], error: null })
+  } }
+  const { createAdminOperationsHandler } = await import('../app/api/admin/operations/route.js')
+  const response = await createAdminOperationsHandler({ adminContext: async () => ({ db }) }).GET()
+  assert.equal(response.status, 200)
+  assert.deepEqual((await response.json()).failedNotifications.map(row => row.id), [1])
+})
+
 test('audited admin booking commands commit their audit or roll the appointment mutation back', async t => {
   // Mutation caught: a best-effort route audit that leaves an admin-created or
   // cancelled booking durable after its required audit write fails.
@@ -88,6 +115,17 @@ test('audited admin booking commands commit their audit or roll the appointment 
   await db.exec(`create function public.reject_appointment_audit() returns trigger language plpgsql as $$ begin if new.action='appointment.create' then raise exception 'audit_insert_failed'; end if; return new; end $$; create trigger reject_appointment_audit before insert on public.admin_audit_logs for each row execute function public.reject_appointment_audit();`)
   await assert.rejects(callSql(db, 'admin_create_appointment_audited', { ...input, p_starts_at: await futureSlot(db, 4) }), /audit_insert_failed/)
   assert.equal((await db.query("select count(*)::int as count from public.appointments where customer_name='Audit Guest'")).rows[0].count, 1)
+})
+
+test('audited terminal appointment statuses cannot be reopened', async t => {
+  const db = await bookingDatabase(t)
+  const booking = await createSql(db, { p_staff_preference: '1' })
+  await callSql(db, 'admin_set_appointment_status_audited', { p_actor_id: adminId, p_appointment_id: booking.id, p_status: 'no_show', p_admin_notes: null })
+  await assert.rejects(
+    callSql(db, 'admin_set_appointment_status_audited', { p_actor_id: adminId, p_appointment_id: booking.id, p_status: 'confirmed', p_admin_notes: null }),
+    /booking_not_changeable/,
+  )
+  assert.equal((await db.query('select status from public.appointments where id=$1', [booking.id])).rows[0].status, 'no_show')
 })
 
 test('operations workspace declares staff, status and service filtering with an assigned-staff calendar row', async () => {

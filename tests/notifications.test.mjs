@@ -121,7 +121,9 @@ test('sendBookingNotification logs to console + supabase (dry run)', async () =>
   }
 })
 
-test('sendBookingNotification returns a durable failure outcome when channel-result persistence fails', async () => {
+test('sendBookingNotification leaves a durable pending marker when the final channel-result update fails', async () => {
+  // Mutation caught: inserting the notification without an initial failure
+  // marker makes a later update error look like a successful notification.
   const rows = []
   __testing.setServiceClient(notificationClient(rows, true))
   try {
@@ -130,5 +132,8 @@ test('sendBookingNotification returns a durable failure outcome when channel-res
     assert.equal(result.outcomePersisted, false)
     assert.equal(result.results.supabase.reason, 'outcome_persist_failed')
     assert.equal(rows.length, 1)
+    assert.deepEqual(rows[0].channel_results, {
+      supabase: { ok: false, mode: 'persistence_pending', reason: 'channel_results_pending' },
+    })
   } finally { __testing.setServiceClient(null) }
 })
