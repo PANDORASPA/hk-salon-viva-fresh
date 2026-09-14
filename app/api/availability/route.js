@@ -1,28 +1,72 @@
-import { NextResponse } from 'next/server.js'
-import availabilityModule from '../../../lib/booking/salon-availability.js'
+import { buildStaffAvailability } from '../../../lib/booking/availability-v2.js'
+import { toBookingHttpError } from '../../../lib/booking/errors.js'
+import { loadAvailability } from '../../../lib/booking/load-availability.js'
 import { getServiceClient } from '../../../lib/supabase/service.js'
-const { buildAvailability, hkDateWindow } = availabilityModule
+
+function positiveInteger(value) {
+  if (!/^[1-9]\d*$/.test(value || '')) return null
+  const number = Number(value)
+  return Number.isSafeInteger(number) ? number : null
+}
+
+function validDate(value) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value || '')) return false
+  const [year, month, day] = value.split('-').map(Number)
+  const parsed = new Date(Date.UTC(year, month - 1, day))
+  return parsed.getUTCFullYear() === year && parsed.getUTCMonth() === month - 1 && parsed.getUTCDate() === day
+}
+
+function staffPreference(value) {
+  if (value == null || value === 'any') return 'any'
+  return positiveInteger(value)
+}
+
+function errorResponse(code) {
+  const error = toBookingHttpError(code)
+  return Response.json({ error: error.message, code: error.code }, { status: error.status })
+}
+
+export function createAvailabilityHandler({
+  getServiceClient: serviceClient = getServiceClient,
+  now = () => new Date(),
+  logger = console,
+} = {}) {
+  return async function availabilityHandler(request) {
+    const { searchParams } = new URL(request.url)
+    const date = searchParams.get('date')
+    const serviceId = positiveInteger(searchParams.get('serviceId'))
+    const staffId = staffPreference(searchParams.get('staffId'))
+    if (!validDate(date) || serviceId == null || staffId == null) return errorResponse('validation_error')
+
+    try {
+      const db = await serviceClient()
+      const loaded = await loadAvailability({ db, date, serviceId, logger })
+      const staff = staffId === 'any'
+        ? loaded.staff
+        : loaded.staff.filter((person) => Number(person.id) === staffId)
+      const availability = buildStaffAvailability({ ...loaded, date, staff, now: now() })
+      return Response.json({
+        date,
+        serviceId,
+        staffId,
+        timezone: 'Asia/Hong_Kong',
+        slots: availability.slots,
+        staffAvailability: availability.staffAvailability,
+      })
+    } catch (error) {
+      if (error?.code !== 'availability_unavailable') {
+        logger?.error?.('Availability handler failed', { date, serviceId, error })
+      }
+      return errorResponse('availability_unavailable')
+    }
+  }
+}
+
 let routeDependencies = { getServiceClient }
 export function __setAvailabilityRouteDependencies(overrides = {}) {
   routeDependencies = { getServiceClient, ...overrides }
 }
 
 export async function GET(request) {
-  const { searchParams } = new URL(request.url), date = searchParams.get('date'), serviceId = Number(searchParams.get('serviceId'))
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(date || '') || !Number.isSafeInteger(serviceId) || serviceId < 1) return NextResponse.json({ error:'Invalid date or service.' },{ status:400 })
-  const db = routeDependencies.getServiceClient(), weekday = new Date(`${date}T12:00:00+08:00`).getUTCDay(), window=hkDateWindow(date)
-  const [serviceRes,hoursRes,blockRes,appointmentsRes] = await Promise.all([
-    db.from('services').select('duration_minutes').eq('id',serviceId).eq('published',true).maybeSingle(),
-    db.from('business_hours').select('*').eq('weekday',weekday).maybeSingle(),
-    db.from('blocked_dates').select('id').lte('starts_on',date).gte('ends_on',date).limit(1),
-    db.from('appointments').select('starts_at,ends_at,status').neq('status','cancelled').gte('starts_at',window.start.toISOString()).lt('starts_at',window.end.toISOString()),
-  ])
-  const error = serviceRes.error || hoursRes.error || blockRes.error || appointmentsRes.error
-  if (error || !serviceRes.data) return NextResponse.json({ error:'Availability is temporarily unavailable.' },{ status:503 })
-  return NextResponse.json({
-    date,
-    serviceId,
-    timezone: 'Asia/Hong_Kong',
-    slots: buildAvailability({ date, durationMinutes:serviceRes.data.duration_minutes, hours:hoursRes.data, blocked:Boolean(blockRes.data?.length), appointments:appointmentsRes.data || [] }),
-  })
+  return createAvailabilityHandler(routeDependencies)(request)
 }
