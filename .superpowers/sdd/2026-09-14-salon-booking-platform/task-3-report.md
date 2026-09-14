@@ -84,3 +84,38 @@ npm run test:unit
 Results: focused suite 16 passed, 0 failed; full unit suite 139 passed, 0 failed, 0 skipped.
 
 Commit: `fix: harden availability qualification and clock handling`.
+
+## Fix Round 2
+
+### Scope
+
+Fixed the remaining null-clock hole. `toMillis` now rejects `null`, `undefined`, and empty strings before invoking the JavaScript date parser, so both booking-window validation and availability generation treat those values as invalid injected clocks. Explicit empty service mappings are also covered directly.
+
+### TDD RED
+
+Command:
+
+```text
+node --test tests/availability-v2.test.mjs
+```
+
+Result before the parser fix: 23 tests ran, 22 passed and 1 failed. The failing test was `returns no availability for null injected clock`; `now: null` became Unix epoch and emitted 1970 slots. The added null booking-window test was adjusted to a 10:00 start so it also directly exercises the epoch-coercion boundary.
+
+### TDD GREEN
+
+Commands:
+
+```text
+node --test tests/availability-v2.test.mjs
+npm run test:unit
+```
+
+Results: focused suite 23 passed, 0 failed, 0 skipped; full unit suite 146 passed, 0 failed, 0 skipped.
+
+Changed files:
+
+- `lib/booking/rules.js`
+- `tests/availability-v2.test.mjs`
+- this report
+
+Commit: `fix: reject null availability clocks`.

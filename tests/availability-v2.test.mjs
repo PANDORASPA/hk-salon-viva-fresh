@@ -122,6 +122,29 @@ test('rejects an invalid injected now for booking-window validation', () => {
   })
 })
 
+for (const invalidNow of [null, undefined, '']) {
+  test(`rejects ${invalidNow === undefined ? 'missing' : JSON.stringify(invalidNow)} injected clock for booking-window validation`, () => {
+    assert.deepEqual(validateBookingWindow({ startsAt: '1970-01-01T10:00:00+08:00', now: invalidNow }), {
+      ok: false, code: 'booking_window_invalid',
+    })
+  })
+
+  test(`returns no availability for ${invalidNow === undefined ? 'missing' : JSON.stringify(invalidNow)} injected clock`, () => {
+    const result = buildStaffAvailability(simpleFixture({
+      date: '1970-01-01', now: invalidNow,
+      weeklyHours: [{ staff_id: 1, weekday: 4, is_working: true, starts_at: '10:00', ends_at: '12:00' }],
+      businessHours: { weekday: 4, is_open: true, opens_at: '10:00', closes_at: '12:00' },
+    }))
+    assert.deepEqual(result, { slots: [], staffAvailability: { '1': [] } })
+  })
+}
+
+test('does not qualify staff with an empty service mapping', () => {
+  const result = buildStaffAvailability(simpleFixture({ staff: [{ id: 1, is_active: true, service_ids: [] }] }))
+  assert.deepEqual(result.slots, [])
+  assert.deepEqual(result.staffAvailability['1'], [])
+})
+
 test('enforces lead time and horizon while building availability', () => {
   assert.deepEqual(buildStaffAvailability(simpleFixture({
     date: '2026-09-14', now: '2026-09-14T10:00:00+08:00',
