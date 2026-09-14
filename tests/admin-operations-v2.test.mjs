@@ -60,6 +60,22 @@ test('admin appointment route preserves the atomic command when a scheduling con
   })
 })
 
+test('admin booking response exposes a notification persistence warning after the atomic command succeeds', async t => {
+  const db = await bookingDatabase(t)
+  const { createAdminAppointmentsHandlers } = await import('../app/api/admin/appointments/route.js')
+  const handlers = createAdminAppointmentsHandlers({ adminContext: async () => ({ db: rpcClient(db), auth: { user: { id: adminId } } }), guardMutationRequest: async () => null, notify: async () => ({ outcomePersisted: false }) })
+  const response = await handlers.POST(request({ serviceId: 1, startsAt: await futureSlot(db), staffPreference: 1, customerName: 'Warning Guest', customerPhone: '91234567' }))
+  assert.equal(response.status, 201)
+  assert.equal((await response.json()).notificationWarning, true)
+})
+
+test('dashboard failure classifier consumes the persisted notification outcome fields', async () => {
+  const { __testing } = await import('../app/api/admin/operations/route.js')
+  assert.equal(__testing.failed({ email: { ok: true }, supabase: { ok: true } }), false)
+  assert.equal(__testing.failed({ email: { ok: false, reason: 'provider_failed' }, supabase: { ok: true } }), true)
+  assert.equal(__testing.failed({ whatsapp: { ok: false, mode: 'dry_run' } }), false)
+})
+
 test('audited admin booking commands commit their audit or roll the appointment mutation back', async t => {
   // Mutation caught: a best-effort route audit that leaves an admin-created or
   // cancelled booking durable after its required audit write fails.

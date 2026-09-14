@@ -5,6 +5,16 @@ import notify from '../lib/notifications/notify.js'
 const { sendBookingNotification, __testing } = notify
 const { render, formatHkTime } = __testing
 
+function notificationClient(rows, failUpdate = false) {
+  return { from(table) {
+    if (table === 'app_settings') return { select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: null, error: null }) }) }) }
+    return {
+      insert: record => ({ select: () => ({ single: async () => { const row = { id: rows.length + 1, ...record }; rows.push(row); return { data: row, error: null } } }) }),
+      update: patch => ({ eq: async (_key, id) => failUpdate ? { error: new Error('outcome write failed') } : (Object.assign(rows.find(row => row.id === id), patch), { error: null }) }),
+    }
+  } }
+}
+
 test('formatHkTime returns null/undefined safe labels and Asia/Hong_Kong output', () => {
   assert.equal(formatHkTime(null), '時間待確認')
   assert.equal(formatHkTime('not-a-date'), '時間待確認')
@@ -83,6 +93,8 @@ test('sendBookingNotification logs to console + supabase (dry run)', async () =>
   // Capture console.log output
   const logs = []
   const orig = console.log
+  const rows = []
+  __testing.setServiceClient(notificationClient(rows))
   console.log = (...args) => logs.push(args.join(' '))
   try {
     const result = await sendBookingNotification({
@@ -99,9 +111,24 @@ test('sendBookingNotification logs to console + supabase (dry run)', async () =>
     assert.equal(result.ok, true)
     assert.ok(result.channels.includes('console'))
     assert.ok(result.channels.includes('supabase'))
+    assert.equal(result.outcomePersisted, true)
+    assert.equal(rows[0].channel_results.console.ok, true)
     assert.ok(logs.some((line) => /\[notify\]/.test(line)))
     assert.ok(logs.some((line) => /whatsapp\.body/.test(line)))
   } finally {
     console.log = orig
+    __testing.setServiceClient(null)
   }
+})
+
+test('sendBookingNotification returns a durable failure outcome when channel-result persistence fails', async () => {
+  const rows = []
+  __testing.setServiceClient(notificationClient(rows, true))
+  try {
+    const result = await sendBookingNotification({ event: 'booking_confirmation', booking: { id: 12, customer_name: 'Ada', customer_phone: '91234567', starts_at: '2026-09-08T14:30:00.000Z' }, service: { name: 'Test' } })
+    assert.equal(result.ok, false)
+    assert.equal(result.outcomePersisted, false)
+    assert.equal(result.results.supabase.reason, 'outcome_persist_failed')
+    assert.equal(rows.length, 1)
+  } finally { __testing.setServiceClient(null) }
 })
