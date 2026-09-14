@@ -6,6 +6,8 @@
 # testing
 /coverage
 /.playwright-cli/
+/playwright-report/
+/test-results/
 /.worktrees/
 
 # next.js
