@@ -8,8 +8,8 @@ const { salonDefaults, defaultServices } = defaultsModule
 test('Salon Poke defaults use the HK hair loss treatment brand', () => {
   assert.match(salonDefaults.identity.name, /SALON POKE BY VIVA/)
   assert.match(salonDefaults.identity.tagline, /爆毛術/)
-  assert.ok(salonDefaults.contact.whatsapp, 'whatsapp placeholder must exist')
-  assert.ok(salonDefaults.contact.email, 'contact email must exist')
+  assert.equal(salonDefaults.contact.whatsapp, null, 'contact details are admin-managed, never invented')
+  assert.equal(salonDefaults.contact.email, null, 'contact details are admin-managed, never invented')
   assert.match(salonDefaults.business.openDays, /星期/)
   assert.match(salonDefaults.business.hours, /\d{2}:\d{2}/)
 })

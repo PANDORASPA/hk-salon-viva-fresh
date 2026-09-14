@@ -1,9 +1,10 @@
 import Link from 'next/link'
 import Footer from '../../components/Footer'
-import { salonDefaults } from '../../../content/salon-poke-defaults'
 import Nav from '../../components/i18n/Nav'
 import { t } from '../../../lib/i18n/dict'
 import { getLocale } from '../../../lib/i18n/server'
+import { getServerClient } from '../../../lib/supabase/server'
+import { publicContact } from '../../../lib/content/public-contact.js'
 
 export const metadata = { title: '購買完成 | SALON POKE BY VIVA' }
 export const dynamic = 'force-dynamic'
@@ -12,7 +13,12 @@ export default async function PackagesSuccessPage({ searchParams }) {
   const locale = getLocale()
   const sessionId = searchParams?.session_id
   const errorCode = searchParams?.error
-  const whatsapp = salonDefaults.contact.whatsapp
+  let contact = publicContact()
+  try {
+    const db = await getServerClient()
+    const { data } = await db.from('site_content').select('data').eq('id', 1).maybeSingle()
+    contact = publicContact(data?.data?.contact)
+  } catch {}
 
   if (errorCode) {
     return (
@@ -61,9 +67,7 @@ export default async function PackagesSuccessPage({ searchParams }) {
 
         <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 32 }}>
           <Link className="salon-button" href="/booking">{t('home.cta.book', locale)}</Link>
-          <a className="salon-button salon-button-secondary" href={`https://wa.me/${whatsapp}`} target="_blank" rel="noopener">
-            WhatsApp {t('home.cta.whatsapp', locale)}
-          </a>
+          {contact.whatsappHref ? <a className="salon-button salon-button-secondary" href={contact.whatsappHref} target="_blank" rel="noopener">WhatsApp {t('home.cta.whatsapp', locale)}</a> : null}
           <Link className="salon-button salon-button-secondary" href="/account">{t('nav.account', locale)}</Link>
         </div>
 

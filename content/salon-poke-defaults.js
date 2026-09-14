@@ -17,12 +17,14 @@ const salonDefaults = {
       "超過20年專業經驗，專精剪髮、染髮、電髮、離子夾及頭髮修護。我們專注為亞洲髮質提供量身訂造的護理方案，在私密的香港市中心工作室為你服務。",
   },
   contact: {
-    whatsapp: "85261201689",
-    phone: "85261201689",
-    email: "info@salonpokeviva.com",
-    instagram: "",
-    area: "香港",
-    addressNote: "確實地址於預約確認後以 WhatsApp 發送",
+    // Contact details are owned by the administrator in `site_content`.
+    // Publishing a plausible fallback would send visitors to somebody else.
+    whatsapp: null,
+    phone: null,
+    email: null,
+    instagram: null,
+    address: null,
+    addressNote: null,
   },
   business: {
     openDays: "星期一至六",

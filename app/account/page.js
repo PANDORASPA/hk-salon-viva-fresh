@@ -9,6 +9,7 @@ import Nav from '../components/i18n/Nav'
 import { t } from '../../lib/i18n/dict'
 import { getLocale } from '../../lib/i18n/server'
 import { ACCOUNT_BOOKING_SELECT, toAccountBooking } from '../../lib/booking/account-booking-view.js'
+import { publicContact } from '../../lib/content/public-contact.js'
 
 export const metadata = { title: '我的帳戶 | SALON POKE BY VIVA', robots: { index: false, follow: false } }
 export const dynamic = 'force-dynamic'
@@ -22,7 +23,7 @@ export default async function AccountPage() {
   const customer = await resolveAuthenticatedCustomer(db, serviceDb)
   if (!customer) redirect(`/signin?redirectTo=/account`)
 
-  const [{ data: profile }, { data: appointments }, customerPackages] = await Promise.all([
+  const [{ data: profile }, { data: appointments }, customerPackages, { data: siteContent }] = await Promise.all([
     db.from('profiles').select('*').eq('id', user.id).maybeSingle(),
     serviceDb.from('appointments')
       .select(ACCOUNT_BOOKING_SELECT)
@@ -30,7 +31,9 @@ export default async function AccountPage() {
       .order('starts_at', { ascending: false })
       .limit(50),
     usableCustomerPackages(serviceDb, customer.id),
+    serviceDb.from('site_content').select('data').eq('id', 1).maybeSingle(),
   ])
+  const contact = publicContact(siteContent?.data?.contact)
 
   return (
     <div className="salon">
@@ -95,13 +98,13 @@ export default async function AccountPage() {
         </h2>
         <BookingsClient initialBookings={(appointments || []).map(toAccountBooking)} />
 
-        <div style={{ marginTop: 40, padding: 24, background: '#f7f3ec', borderRadius: 8 }}>
+        {contact.whatsappHref ? <div style={{ marginTop: 40, padding: 24, background: '#f7f3ec', borderRadius: 8 }}>
           <h3 style={{ margin: '0 0 12px', fontFamily: 'Georgia,serif' }}>{t('account.contact.title', locale)}</h3>
           <p style={{ color: '#706961', marginBottom: 16 }}>{t('account.contact.body', locale)}</p>
-          <a className="salon-button" href="https://wa.me/85261201689" target="_blank" rel="noopener">
+          <a className="salon-button" href={contact.whatsappHref} target="_blank" rel="noopener">
             {t('account.contact.cta', locale)}
           </a>
-        </div>
+        </div> : null}
       </main>
     </div>
   )

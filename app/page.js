@@ -6,6 +6,7 @@ import Nav from './components/i18n/Nav'
 import BrandIcon, { iconForCategory } from './components/BrandIcons'
 import { t } from '../lib/i18n/dict'
 import { getLocale } from '../lib/i18n/server'
+import { publicContact } from '../lib/content/public-contact.js'
 
 export const metadata = {
   title: 'SALON POKE BY VIVA | 爆毛術脫髮護理',
@@ -25,6 +26,7 @@ export default async function HomePage() {
   const content = siteContent?.data || {}
   const id = content.identity || {}
   const c = salonDefaults
+  const contact = publicContact(content.contact)
 
   const svcList = services?.length ? services : defaultServices.map(s => ({
     ...s,
@@ -33,8 +35,7 @@ export default async function HomePage() {
     category: s.category,
   }))
 
-  const whatsapp = id.whatsapp || c.contact.whatsapp
-  const waLink = `https://wa.me/${whatsapp}`
+  const waLink = contact.whatsappHref
 
   return (
     <div className="salon">
@@ -52,9 +53,7 @@ export default async function HomePage() {
           </p>
           <div className="salon-hero-actions">
             <Link className="salon-button" href="/booking">{t('home.cta.book', locale)}</Link>
-            <a className="salon-button salon-button-secondary" href={waLink} target="_blank" rel="noopener">
-              {t('home.cta.whatsapp', locale)}
-            </a>
+            {waLink ? <a className="salon-button salon-button-secondary" href={waLink} target="_blank" rel="noopener">{t('home.cta.whatsapp', locale)}</a> : null}
           </div>
         </div>
       </section>
@@ -111,17 +110,7 @@ export default async function HomePage() {
               ))}
             </ul>
             <div style={{ marginTop: 24 }}>
-              <a className="salon-button" href={waLink} target="_blank" rel="noopener">
-                {t('home.treatment.cta', locale)}
-              </a>
-            </div>
-          </div>
-          <div className="salon-about-image-placeholder">
-            <div className="salon-about-image-inner">
-              <BrandIcon name="leaf" size={64} className="salon-about-image-icon" />
-              <p style={{ color: '#928a81', textAlign: 'center', marginTop: 12 }}>
-                {locale === 'en' ? 'Treatment illustration' : '爆毛術示意圖'}
-              </p>
+              {waLink ? <a className="salon-button" href={waLink} target="_blank" rel="noopener">{t('home.treatment.cta', locale)}</a> : null}
             </div>
           </div>
         </div>

@@ -8,14 +8,14 @@ test('isEmailLiveMode is false when RESEND_API_KEY missing', () => {
   assert.equal(isEmailLiveMode(), false)
 })
 
-test('sendEmail returns ok=true in dry-run when not configured', async () => {
+test('sendEmail labels a simulated delivery as dry_run when not configured', async () => {
   const result = await sendEmail({
     to: 'test@example.com',
     subject: 'Hello',
     text: 'Test message',
   })
   assert.equal(result.ok, true)
-  assert.equal(result.mode, 'dry-run')
+  assert.equal(result.status, 'dry_run')
 })
 
 test('sendEmail returns ok=false when no recipient', async () => {

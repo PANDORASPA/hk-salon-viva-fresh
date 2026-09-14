@@ -1,3 +1,5 @@
+import { publicSiteUrl } from '../lib/content/public-contact.js'
+
 // robots.txt for the public site. /admin and /api are explicitly disallowed
 // to keep internal endpoints and customer data out of the search index.
 //
@@ -7,7 +9,7 @@
 // rather than a 403 from robots.
 
 export default function robots() {
-  const base = process.env.NEXT_PUBLIC_SITE_URL || 'https://salonpokeviva.com'
+  const base = publicSiteUrl(process.env.NEXT_PUBLIC_SITE_URL)
   return {
     rules: [
       {
@@ -16,7 +18,6 @@ export default function robots() {
         disallow: ['/admin', '/admin/*', '/api', '/api/*', '/account', '/account/*'],
       },
     ],
-    sitemap: `${base}/sitemap.xml`,
-    host: base,
+    ...(base ? { sitemap: `${base}/sitemap.xml`, host: base } : {}),
   }
 }

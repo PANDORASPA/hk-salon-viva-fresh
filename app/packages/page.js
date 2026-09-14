@@ -1,10 +1,11 @@
 import Footer from '../components/Footer'
 import { isStripeConfigured } from '../../lib/payments/stripe'
 import { getServerClient } from '../../lib/supabase/server'
-import { defaultServices, salonDefaults } from '../../content/salon-poke-defaults'
+import { defaultServices } from '../../content/salon-poke-defaults'
 import Nav from '../components/i18n/Nav'
 import { t } from '../../lib/i18n/dict'
 import { getLocale } from '../../lib/i18n/server'
+import { publicContact } from '../../lib/content/public-contact.js'
 
 export const metadata = {
   title: '套票購買 | SALON POKE BY VIVA',
@@ -16,6 +17,7 @@ export default async function PackagesPage() {
   const locale = getLocale()
   let dbPackages = []
   let dbError = null
+  let contact = publicContact()
   try {
     const db = await getServerClient()
     const { data, error } = await db
@@ -25,6 +27,8 @@ export default async function PackagesPage() {
       .order('price_hkd', { ascending: true })
     if (error) dbError = error.message
     dbPackages = data || []
+    const { data: content } = await db.from('site_content').select('data').eq('id', 1).maybeSingle()
+    contact = publicContact(content?.data?.contact)
   } catch {
     // env not configured
   }
@@ -44,8 +48,6 @@ export default async function PackagesPage() {
         }))
 
   const purchasesEnabled = isStripeConfigured()
-  const whatsapp = salonDefaults.contact.whatsapp
-
   return (
     <div className="salon">
       <Nav locale={locale} />
@@ -58,7 +60,7 @@ export default async function PackagesPage() {
         </p>
         {!purchasesEnabled && (
           <div className="form-error" style={{ marginBottom: 24, fontSize: 13 }}>
-            網上付款尚未啟用。請透過 WhatsApp 聯絡我們安排購買，現時不會建立模擬付款。
+            網上付款尚未啟用。請透過網站已提供的聯絡方式安排購買，現時不會建立模擬付款。
           </div>
         )}
         {dbError && (
@@ -100,9 +102,7 @@ export default async function PackagesPage() {
           <p style={{ color: '#706961', marginBottom: 12 }}>
             {t('packages.custom.body', locale)}
           </p>
-          <a className="salon-button salon-button-secondary" href={`https://wa.me/${whatsapp}`} target="_blank" rel="noopener">
-            WhatsApp {locale === 'en' ? 'us' : ''}
-          </a>
+          {contact.whatsappHref ? <a className="salon-button salon-button-secondary" href={contact.whatsappHref} target="_blank" rel="noopener">WhatsApp {locale === 'en' ? 'us' : ''}</a> : null}
         </div>
       </main>
       <Footer />

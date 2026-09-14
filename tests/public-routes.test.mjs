@@ -35,11 +35,13 @@ test('public pages do not link to legacy HK/Pandora routes (tickets/products/art
   }
 })
 
-test('home page surfaces the HK hair loss treatment brand and a WhatsApp contact action', async () => {
+test('home page surfaces the HK hair loss treatment brand and only renders a validated WhatsApp action', async () => {
   const source = await read('app/page.js')
   assert.match(source, /SALON POKE/)
   assert.match(source, /爆毛術/)
-  assert.match(source, /wa\.me/) // WhatsApp deep link
+  assert.match(source, /publicContact/)
+  assert.match(source, /waLink \? <a/)
+  assert.doesNotMatch(source, /wa\.me\/852/)
 })
 
 test('shared navigation exposes the live HK salon route set', async () => {

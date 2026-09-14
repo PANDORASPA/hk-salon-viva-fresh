@@ -3,6 +3,7 @@ import { getServerClient } from '../../../lib/supabase/server.js'
 import { getServiceClient } from '../../../lib/supabase/service.js'
 import { loadConfirmationAppointment } from '../../../lib/booking/confirmation.js'
 import { formatAppointmentDateTime, formatPriceHkd } from '../../../lib/format.js'
+import { publicContact } from '../../../lib/content/public-contact.js'
 
 export const metadata = {
   title: '預約確認 | SALON POKE BY VIVA',
@@ -17,6 +18,11 @@ export default async function BookingConfirmPage({ searchParams }) {
   const confirmationToken = query?.token
   const db = await getServerClient()
   const { data: { user } = {} } = await db.auth.getUser()
+  let contact = publicContact()
+  try {
+    const { data } = await db.from('site_content').select('data').eq('id', 1).maybeSingle()
+    contact = publicContact(data?.data?.contact)
+  } catch {}
 
   let appointment = null
   let error = null
@@ -98,7 +104,7 @@ export default async function BookingConfirmPage({ searchParams }) {
             </div>
 
             <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 24 }}>
-              <a className="salon-button" href={`https://wa.me/85261201689?text=${encodeURIComponent(`你好！我剛在 SALON POKE 網站預約了 ${appointment.reference || `#${appointment.id}`}（${appointment.services?.name || ''}，${startsAt || ''}），請確認。`)}`} target="_blank" rel="noopener">WhatsApp 確認</a>
+              {contact.whatsappHref ? <a className="salon-button" href={`${contact.whatsappHref}?text=${encodeURIComponent(`你好！我剛在 SALON POKE 網站預約了 ${appointment.reference || `#${appointment.id}`}（${appointment.services?.name || ''}，${startsAt || ''}），請確認。`)}`} target="_blank" rel="noopener">WhatsApp 確認</a> : null}
               <a className="salon-button salon-button-secondary" href={calendarHref}>加入日曆 (.ics)</a>
               <Link className="salon-button salon-button-secondary" href="/">返回首頁</Link>
             </div>

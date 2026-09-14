@@ -133,7 +133,7 @@ test('sendBookingNotification leaves a durable pending marker when the final cha
     assert.equal(result.results.supabase.reason, 'outcome_persist_failed')
     assert.equal(rows.length, 1)
     assert.deepEqual(rows[0].channel_results, {
-      supabase: { ok: false, mode: 'persistence_pending', reason: 'channel_results_pending' },
+      supabase: { ok: false, status: 'persistence_pending', reason: 'channel_results_pending' },
     })
   } finally { __testing.setServiceClient(null) }
 })
@@ -145,7 +145,7 @@ test('phone-only delivery records disabled email before considering a missing ad
   __testing.setServiceClient(notificationClient(rows, { settings: { notify_email_enabled: false } }))
   try {
     const result = await sendBookingNotification({ event: 'booking_confirmation', booking: { id: 13, customer_name: 'Ada', customer_phone: '91234567', starts_at: '2026-09-08T14:30:00.000Z' }, service: { name: 'Test' } })
-    assert.deepEqual(result.results.email, { ok: false, mode: 'disabled', reason: 'email channel disabled in settings' })
+    assert.deepEqual(result.results.email, { ok: false, status: 'disabled', reason: 'email_channel_disabled' })
     const { __testing: operations } = await import('../app/api/admin/operations/route.js')
     assert.equal(operations.failed(rows[0].channel_results), false)
   } finally { __testing.setServiceClient(null) }
@@ -156,8 +156,26 @@ test('an enabled email channel without an address remains actionable', async () 
   __testing.setServiceClient(notificationClient(rows))
   try {
     const result = await sendBookingNotification({ event: 'booking_confirmation', booking: { id: 14, customer_name: 'Ada', customer_phone: '91234567', starts_at: '2026-09-08T14:30:00.000Z' }, service: { name: 'Test' } })
-    assert.deepEqual(result.results.email, { ok: false, reason: 'no email address' })
+    assert.deepEqual(result.results.email, { ok: false, status: 'failed', reason: 'no_recipient' })
     const { __testing: operations } = await import('../app/api/admin/operations/route.js')
     assert.equal(operations.failed(rows[0].channel_results), true)
+  } finally { __testing.setServiceClient(null) }
+})
+
+test('notification records label dry-run, disabled, failed, and sent channel outcomes explicitly', async () => {
+  // Mutation caught: recording only an `ok` boolean makes a dry run appear as
+  // a delivery and leaves operations unable to distinguish disabled channels.
+  const rows = []
+  __testing.setServiceClient(notificationClient(rows, { settings: { notify_whatsapp_enabled: false } }))
+  try {
+    const result = await sendBookingNotification({
+      event: 'booking_confirmation',
+      booking: { id: 15, customer_name: 'Ada', customer_phone: '91234567', customer_email: 'ada@example.test', starts_at: '2026-09-08T14:30:00.000Z' },
+      service: { name: 'Test' },
+    })
+    assert.equal(result.results.console.status, 'sent')
+    assert.equal(result.results.whatsapp.status, 'disabled')
+    assert.equal(result.results.email.status, 'dry_run')
+    assert.equal(rows[0].channel_results.email.status, 'dry_run')
   } finally { __testing.setServiceClient(null) }
 })

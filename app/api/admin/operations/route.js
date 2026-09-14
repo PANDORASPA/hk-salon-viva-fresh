@@ -3,7 +3,10 @@ import { adminContext, jsonError } from '../../../../lib/admin/salon-api.js'
 
 const hkDay = date => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Hong_Kong', year: 'numeric', month: '2-digit', day: '2-digit' }).format(date)
 const hkMidnight = day => new Date(`${day}T00:00:00+08:00`).toISOString()
-const failed = results => Object.values(results || {}).some(result => result?.ok === false && !['disabled', 'dry_run'].includes(result.mode))
+const failed = results => Object.values(results || {}).some(result => {
+  const state = result?.status || result?.mode
+  return state === 'failed' || (result?.ok === false && !['disabled', 'dry_run'].includes(state))
+})
 const packageView = row => ({ id: row.id, expiresAt: row.expires_at, sessionsRemaining: row.sessions_remaining, customerName: row.customers?.name || '客戶', packageName: row.packages?.name || '套票' })
 const notificationView = row => ({ id: row.id, event: row.event, bookingId: row.booking_id, deliveredAt: row.delivered_at })
 export const __testing = { failed }

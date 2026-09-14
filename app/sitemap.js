@@ -1,3 +1,5 @@
+import { publicSiteUrl } from '../lib/content/public-contact.js'
+
 // Sitemap for the public marketing site. The auth and admin areas are
 // disallowed in robots.js and intentionally omitted here.
 //
@@ -20,7 +22,8 @@ const STATIC_PAGES = [
 ]
 
 export default function sitemap() {
-  const base = process.env.NEXT_PUBLIC_SITE_URL || 'https://salonpokeviva.com'
+  const base = publicSiteUrl(process.env.NEXT_PUBLIC_SITE_URL)
+  if (!base) return []
   return STATIC_PAGES.map(({ path, priority, changeFrequency }) => ({
     url: `${base}${path}`,
     lastModified: DEPLOY_DATE,

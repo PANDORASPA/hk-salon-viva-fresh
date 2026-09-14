@@ -49,5 +49,6 @@ RELEASE_GATE_REPORT_*.json
 
 # task execution evidence (kept locally; never committed)
 /task-9-report.md
+/task-12-report.md
 /task9-*.out
 /task9-*.err
