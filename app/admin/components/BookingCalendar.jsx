@@ -18,8 +18,12 @@ export default function BookingCalendar() {
   const [loading, setLoading] = useState(true), [error, setError] = useState(''), [showCreate, setShowCreate] = useState(false), [notificationWarning, setNotificationWarning] = useState(false)
   const endDay = useMemo(() => addDays(day, mode === 'week' ? 6 : 0), [day, mode])
   const criteria = useMemo(() => ({ day, endDay, staffFilter, statusFilter, serviceFilter }), [day, endDay, staffFilter, statusFilter, serviceFilter])
+  const criteriaRef = useRef(criteria)
+  criteriaRef.current = criteria
+  const mounted = useRef(false)
   const calendar = useRef(null)
   if (!calendar.current) calendar.current = createBookingCalendarController({
+    getCriteria: () => criteriaRef.current,
     onLoadStart: () => { setLoading(true); setError('') },
     onLoadSuccess: data => { setRows(data.rows); setStaff(data.staff); setServices(data.services) },
     onLoadFailure: cause => setError(cause.message),
@@ -27,20 +31,21 @@ export default function BookingCalendar() {
     onMutationSuccess: result => setNotificationWarning(Boolean(result.notificationWarning)),
     onMutationFailure: cause => setError(cause.message),
   })
-  const load = () => calendar.current.load(criteria)
-  useEffect(() => { load(); return () => calendar.current.cancel() }, [criteria])
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; calendar.current.dispose() } }, [])
+  useEffect(() => { calendar.current.load(criteria); return () => calendar.current.cancel() }, [criteria])
   const save = async (event, method) => {
     event.preventDefault(); setError(''); setNotificationWarning(false)
     const formNode = event.currentTarget; const form = Object.fromEntries(new FormData(formNode));
     const payload = { ...form, id: form.id ? Number(form.id) : undefined, serviceId: form.serviceId ? Number(form.serviceId) : undefined, staffPreference: form.staffPreference || 'any', startsAt: asHkIso(form.startsAt) }
     try {
-      await calendar.current.mutate(method, payload)
-      formNode.reset(); setShowCreate(false); load()
+      await calendar.current.mutate(method, payload, { refreshAfterMutation: true })
+      if (!mounted.current) return
+      formNode.reset(); setShowCreate(false)
     } catch {}
   }
   const changeStatus = async (id, status) => {
     setError(''); setNotificationWarning(false)
-    try { await calendar.current.mutate('PATCH', { id, status }); load() } catch {}
+    try { await calendar.current.mutate('PATCH', { id, status }, { refreshAfterMutation: true }) } catch {}
   }
   return (
     <section className="admin-module" aria-labelledby="calendar-title">

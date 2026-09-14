@@ -3,6 +3,7 @@ const aborted = error => error?.name === 'AbortError'
 
 export function createBookingCalendarController({
   fetchImpl = fetch,
+  getCriteria,
   onLoadStart,
   onLoadSuccess,
   onLoadFailure,
@@ -12,6 +13,7 @@ export function createBookingCalendarController({
 } = {}) {
   let generation = 0
   let activeRequest = null
+  let disposed = false
 
   const cancel = () => {
     generation += 1
@@ -20,6 +22,7 @@ export function createBookingCalendarController({
   }
 
   const load = async ({ day, endDay, staffFilter, statusFilter, serviceFilter }) => {
+    if (disposed) return
     const current = ++generation
     activeRequest?.abort()
     const request = new AbortController()
@@ -48,18 +51,32 @@ export function createBookingCalendarController({
     }
   }
 
-  const mutate = async (method, payload) => {
+  const refresh = () => {
+    if (disposed) return undefined
+    const criteria = getCriteria?.()
+    return criteria ? load(criteria) : undefined
+  }
+
+  const mutate = async (method, payload, { refreshAfterMutation = false } = {}) => {
     try {
       const response = await fetchImpl('/api/admin/appointments', { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
       const result = await readJson(response)
       if (!response.ok) throw new Error(result.error || '未能儲存預約。')
-      onMutationSuccess?.(result)
+      if (!disposed) {
+        onMutationSuccess?.(result)
+        if (refreshAfterMutation) void refresh()
+      }
       return result
     } catch (error) {
-      onMutationFailure?.(error)
+      if (!disposed) onMutationFailure?.(error)
       throw error
     }
   }
 
-  return { load, cancel, mutate }
+  const dispose = () => {
+    disposed = true
+    cancel()
+  }
+
+  return { load, refresh, cancel, dispose, mutate }
 }

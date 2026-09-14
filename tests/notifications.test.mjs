@@ -5,9 +5,9 @@ import notify from '../lib/notifications/notify.js'
 const { sendBookingNotification, __testing } = notify
 const { render, formatHkTime } = __testing
 
-function notificationClient(rows, failUpdate = false) {
+function notificationClient(rows, { failUpdate = false, settings = null } = {}) {
   return { from(table) {
-    if (table === 'app_settings') return { select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: null, error: null }) }) }) }
+    if (table === 'app_settings') return { select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: settings ? { data: settings } : null, error: null }) }) }) }
     return {
       insert: record => ({ select: () => ({ single: async () => { const row = { id: rows.length + 1, ...record }; rows.push(row); return { data: row, error: null } } }) }),
       update: patch => ({ eq: async (_key, id) => failUpdate ? { error: new Error('outcome write failed') } : (Object.assign(rows.find(row => row.id === id), patch), { error: null }) }),
@@ -125,7 +125,7 @@ test('sendBookingNotification leaves a durable pending marker when the final cha
   // Mutation caught: inserting the notification without an initial failure
   // marker makes a later update error look like a successful notification.
   const rows = []
-  __testing.setServiceClient(notificationClient(rows, true))
+  __testing.setServiceClient(notificationClient(rows, { failUpdate: true }))
   try {
     const result = await sendBookingNotification({ event: 'booking_confirmation', booking: { id: 12, customer_name: 'Ada', customer_phone: '91234567', starts_at: '2026-09-08T14:30:00.000Z' }, service: { name: 'Test' } })
     assert.equal(result.ok, false)
@@ -135,5 +135,29 @@ test('sendBookingNotification leaves a durable pending marker when the final cha
     assert.deepEqual(rows[0].channel_results, {
       supabase: { ok: false, mode: 'persistence_pending', reason: 'channel_results_pending' },
     })
+  } finally { __testing.setServiceClient(null) }
+})
+
+test('phone-only delivery records disabled email before considering a missing address', async () => {
+  // Mutation caught: checking the recipient first creates an actionable
+  // `no email address` failure even though the email channel is disabled.
+  const rows = []
+  __testing.setServiceClient(notificationClient(rows, { settings: { notify_email_enabled: false } }))
+  try {
+    const result = await sendBookingNotification({ event: 'booking_confirmation', booking: { id: 13, customer_name: 'Ada', customer_phone: '91234567', starts_at: '2026-09-08T14:30:00.000Z' }, service: { name: 'Test' } })
+    assert.deepEqual(result.results.email, { ok: false, mode: 'disabled', reason: 'email channel disabled in settings' })
+    const { __testing: operations } = await import('../app/api/admin/operations/route.js')
+    assert.equal(operations.failed(rows[0].channel_results), false)
+  } finally { __testing.setServiceClient(null) }
+})
+
+test('an enabled email channel without an address remains actionable', async () => {
+  const rows = []
+  __testing.setServiceClient(notificationClient(rows))
+  try {
+    const result = await sendBookingNotification({ event: 'booking_confirmation', booking: { id: 14, customer_name: 'Ada', customer_phone: '91234567', starts_at: '2026-09-08T14:30:00.000Z' }, service: { name: 'Test' } })
+    assert.deepEqual(result.results.email, { ok: false, reason: 'no email address' })
+    const { __testing: operations } = await import('../app/api/admin/operations/route.js')
+    assert.equal(operations.failed(rows[0].channel_results), true)
   } finally { __testing.setServiceClient(null) }
 })
