@@ -2,11 +2,29 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 
-/**
- * Client-side list of the signed-in member's bookings with cancel + reschedule
- * actions. The server component (`app/account/page.js`) loads the data, then
- * passes the array down to this client component for interaction.
- */
+function hongKongInputDateTime(startsAt) {
+  if (!startsAt) return ''
+  const date = new Date(startsAt)
+  return `${date.toLocaleDateString('en-CA', { timeZone: 'Asia/Hong_Kong' })}T${date.toLocaleTimeString('en-GB', { timeZone: 'Asia/Hong_Kong', hourCycle: 'h23', hour: '2-digit', minute: '2-digit' })}`
+}
+
+function bookingTime(startsAt) {
+  return startsAt ? new Date(startsAt).toLocaleString('zh-HK', {
+    timeZone: 'Asia/Hong_Kong', dateStyle: 'long', timeStyle: 'short',
+  }) : '時間待確認'
+}
+
+async function availableSlot({ date, serviceId, staffId, startsAt }) {
+  if (!serviceId) return { staffPreference: staffId || 'any' }
+  const response = await fetch(`/api/availability?date=${encodeURIComponent(date)}&serviceId=${encodeURIComponent(serviceId)}&staffId=${encodeURIComponent(staffId || 'any')}`)
+  const body = await response.json()
+  if (!response.ok) throw new Error(body.error || '暫時無法載入可預約時段。')
+  const slot = body.slots?.find((item) => item.iso === startsAt)
+  if (!slot) throw new Error('你選擇的時段已不可預約；原有預約仍然保留。')
+  return { staffPreference: slot.staffIds?.includes(staffId) ? staffId : 'any' }
+}
+
+/** Client-side account list. Mutations preserve the rendered old slot until the server command succeeds. */
 export default function BookingsClient({ initialBookings = [] }) {
   const router = useRouter()
   const [items, setItems] = useState(initialBookings)
@@ -15,125 +33,77 @@ export default function BookingsClient({ initialBookings = [] }) {
   const [message, setMessage] = useState('')
 
   const cancel = async (id) => {
-    if (!confirm('確定取消呢個預約？如使用套票，次數會自動退還。')) return
-    setBusyId(id)
-    setError('')
-    setMessage('')
+    if (!confirm('確定取消呢個預約？如符合取消期限，使用套票的次數會自動退還。')) return
+    setBusyId(id); setError(''); setMessage('')
     try {
-      const r = await fetch(`/api/account/bookings/${id}`, { method: 'DELETE' })
-      const d = await r.json()
-      if (!r.ok) {
-        if (d.code === 'late_cancellation') {
-          const hours = d.hoursUntilStart ?? '?'
-          throw new Error(`太遲取消：需最少 ${d.cutoffHours} 小時前通知，呢個預約只餘 ${hours} 小時。請 WhatsApp 我哋處理。`)
+      const response = await fetch(`/api/account/bookings/${id}`, { method: 'DELETE' })
+      const body = await response.json()
+      if (!response.ok) {
+        if (body.code === 'late_cancellation') {
+          throw new Error(`太遲取消：需最少 ${body.cutoffHours} 小時前通知，呢個預約只餘 ${body.hoursUntilStart ?? '?'} 小時。請 WhatsApp 我哋處理。`)
         }
-        throw new Error(d.error || '取消失敗')
+        throw new Error(body.error || '取消失敗')
       }
-      setItems((prev) => prev.map((b) => (b.id === id ? { ...b, status: 'cancelled' } : b)))
-      setMessage(d.packageRefunded ? '已取消，套票次數已退還。' : '已取消。')
+      setItems((previous) => previous.map((booking) => booking.id === id ? body.booking : booking))
+      setMessage(body.packageRefunded ? '已取消，套票次數已退還。' : '已取消。')
       router.refresh()
-    } catch (e) {
-      setError(e.message)
-    } finally {
-      setBusyId(null)
-    }
+    } catch (caught) { setError(caught.message) } finally { setBusyId(null) }
   }
 
-  const reschedule = async (b) => {
-    // Default the prompt to the booking's HK-local date+time so the
-    // customer is always editing the value they actually see on screen.
-    const hk = b.starts_at ? new Date(b.starts_at) : null
-    const defaultStr = hk
-      ? `${hk.toLocaleDateString('en-CA', { timeZone: 'Asia/Hong_Kong' })}T${hk.toLocaleTimeString('en-GB', { timeZone: 'Asia/Hong_Kong', hourCycle: 'h23', hour: '2-digit', minute: '2-digit' })}`
-      : ''
-    const input = prompt(
-      '輸入新嘅日期時間 (YYYY-MM-DDTHH:mm，香港時間):',
-      defaultStr,
-    )
+  const reschedule = async (booking) => {
+    const input = prompt('輸入新嘅日期時間 (YYYY-MM-DDTHH:mm，香港時間):', hongKongInputDateTime(booking.startsAt))
     if (!input) return
-    const m = input.match(/^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2})/)
-    if (!m) {
-      setError('日期時間格式唔啱，請用 YYYY-MM-DDTHH:mm。')
-      return
-    }
-    setBusyId(b.id)
-    setError('')
-    setMessage('')
+    const match = input.match(/^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2})$/)
+    if (!match) { setError('日期時間格式唔啱，請用 YYYY-MM-DDTHH:mm。'); return }
+    const startsAt = `${match[1]}T${match[2]}:00+08:00`
+    setBusyId(booking.id); setError(''); setMessage('')
     try {
-      const r = await fetch(`/api/account/bookings/${b.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ date: m[1], time: m[2] }),
+      // The public availability endpoint is advisory only. The atomic server
+      // command remains authoritative and keeps this old booking on a 409.
+      const { staffPreference } = await availableSlot({
+        date: match[1], serviceId: booking.serviceId, staffId: booking.staffId, startsAt,
       })
-      const d = await r.json()
-      if (!r.ok) throw new Error(d.error || '改期失敗')
-      setItems((prev) => prev.map((x) => (x.id === b.id ? { ...x, ...d.booking } : x)))
+      const response = await fetch(`/api/account/bookings/${booking.id}`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ date: match[1], time: match[2], staffPreference }),
+      })
+      const body = await response.json()
+      if (!response.ok) {
+        if (response.status === 409) throw new Error(`${body.error || '改期失敗'} 原有預約仍然保留。`)
+        throw new Error(body.error || '改期失敗')
+      }
+      setItems((previous) => previous.map((item) => item.id === booking.id ? body.booking : item))
       setMessage('已成功改期。')
       router.refresh()
-    } catch (e) {
-      setError(e.message)
-    } finally {
-      setBusyId(null)
-    }
+    } catch (caught) { setError(caught.message) } finally { setBusyId(null) }
   }
 
-  if (!items.length) {
-    return <p style={{ color: '#928a81', marginBottom: 40 }}>暫時沒有預約記錄。</p>
-  }
+  if (!items.length) return <p style={{ color: '#928a81', marginBottom: 40 }}>暫時沒有預約記錄。</p>
 
   return (
     <>
-      {error && (
-        <div className="form-error" style={{ marginBottom: 16 }} role="alert">⚠️ {error}</div>
-      )}
-      {message && (
-        <div className="form-success" style={{ marginBottom: 16 }} role="status">✓ {message}</div>
-      )}
+      {error ? <div className="form-error" style={{ marginBottom: 16 }} role="alert">⚠️ {error}</div> : null}
+      {message ? <div className="form-success" style={{ marginBottom: 16 }} role="status">✓ {message}</div> : null}
       <div className="admin-list">
-        {items.map((b) => {
-          const isActive = b.status !== 'cancelled' && b.status !== 'completed' && b.status !== 'no_show'
+        {items.map((booking) => {
+          const active = !['cancelled', 'completed', 'no_show'].includes(booking.status)
+          const redemption = booking.packageRedemption
           return (
-            <article key={b.id}>
+            <article key={booking.id}>
               <div>
-                <strong>{b.services?.name || `預約 #${b.id}`}</strong>
-                <p>
-                  {b.starts_at
-                    ? new Date(b.starts_at).toLocaleString('zh-HK', {
-                        timeZone: 'Asia/Hong_Kong',
-                        dateStyle: 'long',
-                        timeStyle: 'short',
-                      })
-                    : '時間待確認'}
-                </p>
-                {b.customer_package_id && (
-                  <p style={{ fontSize: 12, color: '#706961', marginTop: 4 }}>
-                    使用套票 #{b.customer_package_id}
-                  </p>
-                )}
+                <strong>{booking.service?.name || `預約 ${booking.reference || `#${booking.id}`}`}</strong>
+                <p>{bookingTime(booking.startsAt)}</p>
+                <p style={{ fontSize: 12, color: '#706961', marginTop: 4 }}>服務員工：{booking.staff?.displayName || '待安排'}</p>
+                {redemption ? <p style={{ fontSize: 12, color: '#706961', marginTop: 4 }}>
+                  套票：{redemption.packageName || `#${redemption.packageId}`} · {redemption.refundedAt ? '已退還' : '已扣減'} · 剩餘 {redemption.sessionsRemaining ?? '—'}/{redemption.totalSessions ?? '—'} 次
+                </p> : null}
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6, alignItems: 'flex-end' }}>
-                <span className={`status ${b.status || 'pending'}`}>{b.status || 'pending'}</span>
-                {isActive && (
-                  <div style={{ display: 'flex', gap: 6 }}>
-                    <button
-                      type="button"
-                      className="admin-action"
-                      disabled={busyId === b.id}
-                      onClick={() => reschedule(b)}
-                    >
-                      改期
-                    </button>
-                    <button
-                      type="button"
-                      className="admin-action"
-                      style={{ color: '#c0392b' }}
-                      disabled={busyId === b.id}
-                      onClick={() => cancel(b.id)}
-                    >
-                      取消
-                    </button>
-                  </div>
-                )}
+                <span className={`status ${booking.status || 'pending'}`}>{booking.status || 'pending'}</span>
+                {active ? <div style={{ display: 'flex', gap: 6 }}>
+                  <button type="button" className="admin-action" disabled={busyId === booking.id} onClick={() => reschedule(booking)}>改期</button>
+                  <button type="button" className="admin-action" style={{ color: '#c0392b' }} disabled={busyId === booking.id} onClick={() => cancel(booking.id)}>取消</button>
+                </div> : null}
               </div>
             </article>
           )

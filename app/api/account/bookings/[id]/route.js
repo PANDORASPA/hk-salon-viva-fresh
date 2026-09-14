@@ -1,9 +1,10 @@
 import { getServerClient } from '../../../../../lib/supabase/server.js'
 import { getServiceClient } from '../../../../../lib/supabase/service.js'
 import { guardMutationRequest } from '../../../../../lib/security/request-guards.js'
-import { BookingCommandError, bookingCommandResponse, positiveBookingId, publicAppointment,
+import { BookingCommandError, bookingCommandResponse, positiveBookingId,
   rescheduleAppointment, cancelAppointment } from '../../../../../lib/booking/commands.js'
 import { sendBookingNotification } from '../../../../../lib/notifications/notify.js'
+import { ACCOUNT_BOOKING_SELECT, toAccountBooking } from '../../../../../lib/booking/account-booking-view.js'
 
 function localStartsAt(date, time) {
   if (typeof date !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(date)
@@ -17,6 +18,31 @@ function localStartsAt(date, time) {
   // Preserve the validated local fields. A permissive Date.UTC conversion
   // would normalize September 31, 24:xx or overflowing minutes into a new slot.
   return `${date}T${time}:00+08:00`
+}
+
+async function readAccountBooking(db, id, userId) {
+  const { data, error } = await db.from('appointments')
+    .select(ACCOUNT_BOOKING_SELECT)
+    .eq('id', id)
+    .eq('user_id', userId)
+    .maybeSingle()
+  if (error) throw error
+  if (!data) throw new BookingCommandError('booking_not_found')
+  return toAccountBooking(data)
+}
+
+function commandBooking(view, commandRow) {
+  // Keep the former command fields for callers that already refresh a row by
+  // id, while all displayed data stays on the explicit customer-safe view.
+  return { ...view, staff_id: commandRow.staff_id, starts_at: commandRow.starts_at }
+}
+
+async function commandAccountBooking(db, commandRow, userId) {
+  // The route's injected command boundary in older callers exposes RPC only.
+  // A production service client always hydrates staff/redemption data; the
+  // fallback retains the safe command projection without widening that seam.
+  if (typeof db?.from !== 'function') return commandBooking(toAccountBooking(commandRow), commandRow)
+  return commandBooking(await readAccountBooking(db, commandRow.id, userId), commandRow)
 }
 
 export function createAccountBookingHandlers({
@@ -38,14 +64,8 @@ export function createAccountBookingHandlers({
     async GET(_request, context) {
       try {
         const id = await idFrom(context)
-        const { db, user } = await actor()
-        const { data, error } = await db.from('appointments')
-          .select('id, reference, user_id, customer_id, service_id, staff_id, customer_package_id, customer_name, customer_phone, customer_email, starts_at, ends_at, status, services(name, duration_minutes, price)')
-          .eq('id', id).eq('user_id', user.id).maybeSingle()
-        if (error) throw error
-        if (!data) throw new BookingCommandError('booking_not_found')
-        if (data.user_id !== user.id) throw new BookingCommandError('ownership_forbidden')
-        return Response.json({ booking: { ...publicAppointment(data), services: data.services } })
+        const { user } = await actor()
+        return Response.json({ booking: await readAccountBooking(await serviceClient(), id, user.id) })
       } catch (error) { return bookingCommandResponse(error) }
     },
     async PATCH(request, context) {
@@ -60,12 +80,13 @@ export function createAccountBookingHandlers({
         if (!startsAt && body.date && body.time) {
           startsAt = localStartsAt(body.date, body.time)
         }
-        const booking = await rescheduleAppointment(await serviceClient(), {
+        const commandDb = await serviceClient()
+        const booking = await rescheduleAppointment(commandDb, {
           appointmentId, startsAt, staffPreference: body.staffPreference ?? body.staffId,
           actorUserId: user.id,
         })
         await send('booking_reschedule', booking)
-        return Response.json({ booking })
+        return Response.json({ booking: await commandAccountBooking(commandDb, booking, user.id) })
       } catch (error) { return bookingCommandResponse(error) }
     },
     async DELETE(request, context) {
@@ -74,9 +95,14 @@ export function createAccountBookingHandlers({
       try {
         const appointmentId = await idFrom(context)
         const { user } = await actor()
-        const booking = await cancelAppointment(await serviceClient(), { appointmentId, actorUserId: user.id })
+        const commandDb = await serviceClient()
+        const booking = await cancelAppointment(commandDb, { appointmentId, actorUserId: user.id })
         await send('booking_cancellation', booking)
-        return Response.json({ booking })
+        const view = await commandAccountBooking(commandDb, booking, user.id)
+        return Response.json({
+          booking: view,
+          packageRefunded: Boolean(view.packageRedemption?.refundedAt),
+        })
       } catch (error) { return bookingCommandResponse(error) }
     },
   }

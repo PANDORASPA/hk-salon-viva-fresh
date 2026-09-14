@@ -8,6 +8,7 @@ import BookingsClient from './BookingsClient'
 import Nav from '../components/i18n/Nav'
 import { t } from '../../lib/i18n/dict'
 import { getLocale } from '../../lib/i18n/server'
+import { ACCOUNT_BOOKING_SELECT, toAccountBooking } from '../../lib/booking/account-booking-view.js'
 
 export const metadata = { title: '我的帳戶 | SALON POKE BY VIVA' }
 export const dynamic = 'force-dynamic'
@@ -23,8 +24,8 @@ export default async function AccountPage() {
 
   const [{ data: profile }, { data: appointments }, customerPackages] = await Promise.all([
     db.from('profiles').select('*').eq('id', user.id).maybeSingle(),
-    db.from('appointments')
-      .select('id, starts_at, status, customer_package_id, services(name, duration_minutes)')
+    serviceDb.from('appointments')
+      .select(ACCOUNT_BOOKING_SELECT)
       .eq('user_id', user.id)
       .order('starts_at', { ascending: false })
       .limit(50),
@@ -89,10 +90,10 @@ export default async function AccountPage() {
           <p style={{ color: '#928a81', marginBottom: 40 }}>{t('account.empty.packages', locale)}</p>
         )}
 
-        <h2 className="salon-section-title" style={{ textAlign: 'left', marginBottom: 20, fontSize: 24 }}>
+        <h2 id="bookings" className="salon-section-title" style={{ textAlign: 'left', marginBottom: 20, fontSize: 24 }}>
           {t('account.bookings', locale)}
         </h2>
-        <BookingsClient initialBookings={appointments || []} />
+        <BookingsClient initialBookings={(appointments || []).map(toAccountBooking)} />
 
         <div style={{ marginTop: 40, padding: 24, background: '#f7f3ec', borderRadius: 8 }}>
           <h3 style={{ margin: '0 0 12px', fontFamily: 'Georgia,serif' }}>{t('account.contact.title', locale)}</h3>

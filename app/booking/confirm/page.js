@@ -1,28 +1,40 @@
 import Link from 'next/link'
-import { getServerClient } from '../../../lib/supabase/server'
-import { formatAppointmentDateTime, formatPriceHkd } from '../../../lib/format'
+import { getServerClient } from '../../../lib/supabase/server.js'
+import { getServiceClient } from '../../../lib/supabase/service.js'
+import { loadConfirmationAppointment } from '../../../lib/booking/confirmation.js'
+import { formatAppointmentDateTime, formatPriceHkd } from '../../../lib/format.js'
 
 export const metadata = { title: '預約確認 | SALON POKE BY VIVA' }
 export const dynamic = 'force-dynamic'
 
 export default async function BookingConfirmPage({ searchParams }) {
+  const query = await searchParams
+  const id = query?.id
+  const confirmationToken = query?.token
   const db = await getServerClient()
-  const id = searchParams?.id
+  const { data: { user } = {} } = await db.auth.getUser()
 
   let appointment = null
   let error = null
-  if (id) {
-    const { data, error: err } = await db
-      .from('appointments')
-      .select('id, starts_at, status, customer_name, customer_phone, services(name, price, duration_minutes)')
-      .eq('id', id)
-      .maybeSingle()
-    if (err) error = err.message
-    else appointment = data
+  try {
+    appointment = await loadConfirmationAppointment({
+      id,
+      confirmationToken,
+      user,
+      serverDatabase: db,
+      // Only token requests initialize the service-role client. Owner reads
+      // remain scoped to the authenticated browser session and RLS.
+      serviceDatabase: getServiceClient,
+    })
+  } catch {
+    error = '暫時無法讀取預約資料，請稍後再試。'
   }
 
   const startsAt = appointment?.starts_at ? formatAppointmentDateTime(appointment.starts_at) : null
   const priceHkd = appointment?.services?.price != null ? formatPriceHkd(appointment.services.price) : null
+  const calendarHref = appointment
+    ? `/api/appointments/${appointment.id}/ics${confirmationToken ? `?token=${encodeURIComponent(confirmationToken)}` : ''}`
+    : null
 
   return (
     <div className="salon">
@@ -43,14 +55,12 @@ export default async function BookingConfirmPage({ searchParams }) {
           {appointment ? '預約已確認' : '查詢預約'}
         </h1>
 
-        {error && (
-          <div className="form-error">
-            <strong>查詢失敗：</strong> {error}
-          </div>
-        )}
+        {error && <div className="form-error" role="alert">{error}</div>}
 
-        {!id && !appointment && (
-          <p style={{ color: '#706961' }}>沒有提供預約編號。</p>
+        {!error && !appointment && (
+          <p style={{ color: '#706961' }}>
+            {id ? '預約連結無效或已失效。請登入帳戶查看你的預約，或使用確認電郵中的專屬連結。' : '沒有提供有效的預約連結。'}
+          </p>
         )}
 
         {appointment && (
@@ -60,61 +70,32 @@ export default async function BookingConfirmPage({ searchParams }) {
             </p>
             <div className="admin-list" style={{ marginBottom: 32 }}>
               <article>
-                <div>
-                  <strong>預約編號</strong>
-                  <p>#{appointment.id}</p>
-                </div>
+                <div><strong>預約編號</strong><p>{appointment.reference || `#${appointment.id}`}</p></div>
                 <span className={`status ${appointment.status || 'pending'}`}>{appointment.status || 'pending'}</span>
               </article>
               <article>
-                <div>
-                  <strong>服務</strong>
-                  <p>{appointment.services?.name || '—'}</p>
-                </div>
-                <span style={{ color: '#706961' }}>
-                  {appointment.services?.duration_minutes ? `${appointment.services.duration_minutes} 分鐘` : ''}
-                </span>
+                <div><strong>服務</strong><p>{appointment.services?.name || '—'}</p></div>
+                <span style={{ color: '#706961' }}>{appointment.services?.duration_minutes ? `${appointment.services.duration_minutes} 分鐘` : ''}</span>
               </article>
               <article>
-                <div>
-                  <strong>時間</strong>
-                  <p>{startsAt || '待確認'}</p>
-                </div>
+                <div><strong>服務員工</strong><p>{appointment.staff?.display_name || '待安排'}</p></div>
+                <span style={{ color: '#706961' }}>已安排員工</span>
+              </article>
+              <article>
+                <div><strong>時間</strong><p>{startsAt || '待確認'}</p></div>
                 <span style={{ color: '#706961' }}>香港時間 (Asia/Hong_Kong)</span>
-              </article>
-              <article>
-                <div>
-                  <strong>姓名</strong>
-                  <p>{appointment.customer_name || '—'}</p>
-                </div>
-                <span style={{ color: '#706961' }}>{appointment.customer_phone || ''}</span>
               </article>
               {priceHkd && (
                 <article>
-                  <div>
-                    <strong>費用</strong>
-                    <p>HK$ {priceHkd}</p>
-                  </div>
+                  <div><strong>費用</strong><p>HK$ {priceHkd}</p></div>
                   <span style={{ color: '#706961' }}>現場付款</span>
                 </article>
               )}
             </div>
 
             <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 24 }}>
-              <a
-                className="salon-button"
-                href={`https://wa.me/85261201689?text=${encodeURIComponent(`你好！我剛在 SALON POKE 網站預約了 #${appointment.id}（${appointment.services?.name || ''}，${startsAt || ''}），請確認。`)}`}
-                target="_blank"
-                rel="noopener"
-              >
-                WhatsApp 確認
-              </a>
-              <a
-                className="salon-button salon-button-secondary"
-                href={`/api/appointments/${appointment.id}/ics`}
-              >
-                加入日曆 (.ics)
-              </a>
+              <a className="salon-button" href={`https://wa.me/85261201689?text=${encodeURIComponent(`你好！我剛在 SALON POKE 網站預約了 ${appointment.reference || `#${appointment.id}`}（${appointment.services?.name || ''}，${startsAt || ''}），請確認。`)}`} target="_blank" rel="noopener">WhatsApp 確認</a>
+              <a className="salon-button salon-button-secondary" href={calendarHref}>加入日曆 (.ics)</a>
               <Link className="salon-button salon-button-secondary" href="/">返回首頁</Link>
             </div>
 
@@ -123,7 +104,7 @@ export default async function BookingConfirmPage({ searchParams }) {
               <ul style={{ paddingLeft: 20, color: '#706961', lineHeight: 1.8 }}>
                 <li>請於預約時間 5 分鐘前到達工作室。</li>
                 <li>如需改期或取消，請最少提前 24 小時通知我們。</li>
-                <li>使用套票預約，系統會自動扣減一次。如需取消，套票次數會自動退還。</li>
+                <li>使用套票預約時，取消成功後會自動退還一次；逾期取消請聯絡本店。</li>
               </ul>
             </div>
           </>

@@ -10,6 +10,7 @@ import ContactStep from './ContactStep'
 import ReviewStep from './ReviewStep'
 import { hongKongDate } from './booking-time'
 import { loadAvailability, loadCustomerPackages } from './booking-data'
+import { confirmationUrl } from './booking-confirmation'
 
 const stepLabels = ['服務', '員工', '時間', '聯絡方式', '確認']
 
@@ -115,8 +116,7 @@ export default function BookingWizard({ services = [], authenticated = false }) 
         } else dispatch({ type: 'SUBMIT_ERROR', error, status: response.status })
         return
       }
-      const id = body.appointment?.id
-      router.push(id ? `/booking/confirm?id=${id}` : '/booking/confirm')
+      router.push(confirmationUrl(body))
     } catch {
       dispatch({ type: 'SUBMIT_ERROR', error: '網絡連線出現問題，請稍後再試。' })
     }
