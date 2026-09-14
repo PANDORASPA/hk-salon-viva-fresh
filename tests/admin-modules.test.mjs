@@ -15,8 +15,10 @@ test('admin shell contains exactly the six approved operating modules', async ()
 test('every admin module has a protected route contract', async () => {
   for (const name of modules) {
     const source = await read(`app/api/admin/${name}/route.js`)
-    assert.match(source,/adminContext\(/,name)
-    assert.match(source,/guardMutationRequest\(/,name)
+    // Factories may inject the same guards. Runtime denial behavior is covered
+    // by the real schedule/command factory tests, not this supplementary check.
+    assert.match(source,/adminContext\(|adminContext:\s*resolveContext\s*=\s*adminContext/,name)
+    assert.match(source,/guardMutationRequest\(|guardMutationRequest:\s*guard\s*=\s*guardMutationRequest/,name)
   }
 })
 

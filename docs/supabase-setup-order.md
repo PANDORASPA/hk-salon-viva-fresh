@@ -6,17 +6,16 @@ Do not apply root-level legacy SQL as a substitute for the migrations below.
 
 ## Canonical migration order
 
-| File | Purpose |
-| --- | --- |
-| `20260813000100_salon_poke_core.sql` | Core salon entities, appointment RPC, hours and triggers |
-| `20260813000200_salon_poke_rls_storage.sql` | Admin helper, RLS, grants and gallery storage |
-| `20260905000000_customers_packages.sql` | Customers, package catalogue and ownership records |
-| `20260905000001_appointments_customer_id.sql` | Appointment/customer/package links and legacy RPC |
-| `20260907000000_package_redeem_rpc.sql` | Package redemption/refund RPCs; fresh replay repaired |
-| `20260907000001_notifications_table.sql` | Notification delivery records |
-| `20260907000002_app_settings.sql` | Runtime settings |
-| `20260914101458_booking_staff_foundation.sql` | Staff, skills, weekly hours, time off and per-staff occupancy |
-| `20260914110338_booking_commands.sql` | Atomic create, reschedule, cancellation and retained package refunds |
+Apply **every** checked-in SQL file, not a copied partial list. Generate the authoritative inventory from the release checkout:
+
+```powershell
+git rev-parse HEAD
+Get-ChildItem -LiteralPath supabase/migrations -Filter '*.sql' | Sort-Object Name | Select-Object -ExpandProperty Name
+```
+
+The current inventory contains 29 files and ends at `20260915050000_final_release_integrity.sql`. The final additive repair denies browser appointment writes/private reads, grants the server's required operations, normalizes legacy buffers to 0–120/default 15, and adds the remaining audited admin commands. Its CLI-generated timestamp was advanced beyond the previously future-dated inventory so it is applied last. No already-applied migration is changed in this final wave.
+
+Record the generated list and candidate commit in release evidence. Supabase CLI migration history remains authoritative for what has already applied; never rerun selected SQL statements as a substitute for a full migration.
 
 Fresh-install replay now creates `package_redemptions` before its composite type
 is referenced, and explicitly drops/recreates the legacy
@@ -111,9 +110,9 @@ the existing row in one transaction, preserving its original redemption, and
 cancel marks that redemption refunded once while retaining the audit record.
 
 `createAppointmentsHandler` accepts a trusted `resolveCustomer(request)` returning
-`{ customer, actorUserId }`. Task 6 supplies this resolver and `customers.user_id`.
-Before then the default route accepts guests and refuses package use with 401;
-SQL also fails closed when the identity column/binding is absent. Request-body
+`{ customer, actorUserId }`. The verified resolver and `customers.user_id` binding are implemented.
+Guests may self-pay but cannot use member entitlements; SQL fails closed
+when the verified identity binding is absent. Request-body
 customer IDs, actor IDs and source values are never identity proof. Reschedule
 passes the verified actor as the fourth RPC argument (defaulting to `auth.uid()`
 for SQL clients); cancellation passes the verified actor as its second argument.
@@ -150,7 +149,7 @@ Expect zero missing/invalid occupancy rows, one exclusion constraint, and RLS tr
 for all four tables. Verify staff display and private time-off reads using actual
 anon, member and admin sessions before deployment.
 
-Run `node --test tests/booking-staff-schema.test.mjs` for the disposable PostgreSQL
+Run `node --test tests/booking-staff-schema.test.mjs tests/booking-commands.test.mjs tests/customer-identity.test.mjs tests/final-integration.test.mjs` for the disposable PostgreSQL
 tests, then `npm run test:unit`. The tests use pinned PGlite PostgreSQL WASM with
 real `btree_gist`/`pgcrypto` extensions and execute this migration unmodified.
 They cover backfill, transactional preflight failure, exclusion behavior, range
@@ -158,8 +157,8 @@ derivation, legacy insert compatibility and role-based SQL access, both with and
 without old automatic grants. Supabase-owned auth/storage fixture scaffolding is
 minimal. `node --test tests/booking-commands.test.mjs` adds full-chain replay,
 real route-to-RPC execution, package rollback, collision retry and refund tests.
-Its package cases explicitly add the forward-compatible Task 6 identity fixture;
-the guest/full-chain case verifies fail-closed behavior without that column.
+Its package cases bind disposable owned customer fixtures;
+the guest/full-chain case verifies fail-closed behavior without an owner binding.
 This is not a PostgREST, hosted Supabase, advisor or concurrent-session test. A
 full local/preview Supabase verification remains part of the release gate.
 

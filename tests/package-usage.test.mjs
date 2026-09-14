@@ -47,100 +47,12 @@ test('listUsablePackagesForCustomer filters out unusable packages', () => {
   )
 })
 
-test('applyRedemption falls back to the legacy two-step path when RPC is not available', async () => {
-  // Mock Supabase client: rpc throws, then a successful lookup + update + insert
-  let rpcCalled = false
-  let updateCalled = false
-  let insertCalled = false
-  const db = {
-    rpc: async (name) => {
-      rpcCalled = true
-      return { data: null, error: { message: 'function not found' } }
-    },
-    from: (table) => {
-      if (table === 'customer_packages') {
-        return {
-          select: () => ({
-            eq: () => ({
-              single: async () => ({
-                data: { id: 7, sessions_remaining: 3, total_sessions: 5, is_active: true, expires_at: future },
-                error: null,
-              }),
-            }),
-          }),
-          update: (patch) => {
-            updateCalled = true
-            assert.equal(patch.sessions_remaining, 2)
-            return {
-              eq: async () => ({ data: null, error: null }),
-            }
-          },
-        }
-      }
-      if (table === 'package_redemptions') {
-        return {
-          insert: async () => {
-            insertCalled = true
-            return { data: null, error: null }
-          },
-        }
-      }
-      throw new Error('unexpected table ' + table)
-    },
-  }
-  const result = await applyRedemption(db, { customerPackageId: 7, appointmentId: 99 })
-  assert.equal(result.ok, true)
-  assert.equal(result.mode, 'legacy')
-  assert.equal(rpcCalled, true)
-  assert.equal(updateCalled, true)
-  assert.equal(insertCalled, true)
-})
-
-test('reverseRedemption caps the restored count at total_sessions', async () => {
-  let deleteCalled = false
-  let updateCalled = false
-  let lastPatch = null
-  const db = {
-    rpc: async () => ({ data: null, error: { message: 'function not found' } }),
-    from: (table) => {
-      if (table === 'customer_packages') {
-        return {
-          select: () => ({
-            eq: () => ({
-              single: async () => ({
-                data: { id: 7, sessions_remaining: 0, total_sessions: 5 },
-                error: null,
-              }),
-            }),
-          }),
-          update: (patch) => {
-            updateCalled = true
-            lastPatch = patch
-            return { eq: async () => ({ data: null, error: null }) }
-          },
-        }
-      }
-      if (table === 'package_redemptions') {
-        return {
-          delete: () => {
-            deleteCalled = true
-            return {
-              eq: () => ({
-                eq: async () => ({ data: null, error: null }),
-              }),
-            }
-          },
-        }
-      }
-      throw new Error('unexpected table ' + table)
-    },
-  }
-  const result = await reverseRedemption(db, { customerPackageId: 7, appointmentId: 99 })
-  assert.equal(result.ok, true)
-  assert.equal(deleteCalled, true)
-  assert.equal(updateCalled, true)
-  assert.equal(lastPatch.sessions_remaining, 1)
-})
+for (const [name, command] of [['applyRedemption', applyRedemption], ['reverseRedemption', reverseRedemption]]) {
+  test(name + ' retires the unsafe standalone balance mutation without any database call', async () => {
+    const db = { rpc() { throw new Error('Retired command must not call RPC') }, from() { throw new Error('Retired command must not mutate a table') } }
+    assert.deepEqual(await command(db, { customerPackageId: 7, appointmentId: 99 }), { ok: false, reason: 'operation_retired' })
+  })
+}
 
 test('applyRedemption refuses an unusable package without writing', async () => {
   const db = {

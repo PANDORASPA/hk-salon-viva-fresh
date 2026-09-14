@@ -1,3 +1,7 @@
+# RETIRED — historical Bristol inventory
+
+This August 2026 capture is retained only for provenance. It is not current Hong Kong content, a production destination, a fallback contact source, or release instructions. Use the [current design](superpowers/specs/2026-09-14-salon-booking-platform-design.md) and [operations runbook](booking-platform-operations.md). None of the historical contacts below may be republished without new owner approval.
+
 # Salon Poke Bristol Live-Site Inventory
 
 Captured from `https://lo-chan-hair-bristol.vercel.app` on 2026-08-13 before rebuilding the Git-backed application.

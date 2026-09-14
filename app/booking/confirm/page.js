@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { getServerClient } from '../../../lib/supabase/server.js'
 import { getServiceClient } from '../../../lib/supabase/service.js'
-import { loadConfirmationAppointment } from '../../../lib/booking/confirmation.js'
+import { loadConfirmationAppointment, confirmationPayment } from '../../../lib/booking/confirmation.js'
 import { formatAppointmentDateTime, formatPriceHkd } from '../../../lib/format.js'
 import { publicContact } from '../../../lib/content/public-contact.js'
 
@@ -42,6 +42,7 @@ export default async function BookingConfirmPage({ searchParams }) {
 
   const startsAt = appointment?.starts_at ? formatAppointmentDateTime(appointment.starts_at) : null
   const priceHkd = appointment?.services?.price != null ? formatPriceHkd(appointment.services.price) : null
+  const payment = confirmationPayment(appointment)
   const calendarHref = appointment
     ? `/api/appointments/${appointment.id}/ics${confirmationToken ? `?token=${encodeURIComponent(confirmationToken)}` : ''}`
     : null
@@ -95,10 +96,10 @@ export default async function BookingConfirmPage({ searchParams }) {
                 <div><strong>時間</strong><p>{startsAt || '待確認'}</p></div>
                 <span style={{ color: '#706961' }}>香港時間 (Asia/Hong_Kong)</span>
               </article>
-              {priceHkd && (
+              {payment && (
                 <article>
-                  <div><strong>費用</strong><p>HK$ {priceHkd}</p></div>
-                  <span style={{ color: '#706961' }}>現場付款</span>
+                  <div><strong>費用</strong><p>{payment.method === 'package' ? payment.label : priceHkd == null ? '按預約服務收費' : `HK$ ${priceHkd}`}</p></div>
+                  <span style={{ color: '#706961' }}>{payment.method === 'package' ? '套票預約' : payment.label}</span>
                 </article>
               )}
             </div>

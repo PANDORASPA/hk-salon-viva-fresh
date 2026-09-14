@@ -22,10 +22,10 @@ Configure the names below in the target secret store, never in source control.
 | Reminder cron | `CRON_SECRET` |
 | Email | `RESEND_API_KEY`, `NOTIFY_EMAIL_FROM`, `NOTIFY_DRY_RUN` |
 | WhatsApp setting | `NOTIFY_WHATSAPP_PROVIDER` |
-| Stripe, only when enabled | `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY`, `STRIPE_CURRENCY` |
+| Stripe (reserved; hard-disabled in this release) | `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY`, `STRIPE_CURRENCY` |
 | Optional shared rate-limit store | `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN` |
 
-Add `/auth/callback` under the exact `NEXT_PUBLIC_SITE_URL` to Supabase Auth redirect configuration. The cron route is `/api/cron/reminders`; use an `Authorization: Bearer` header derived from `CRON_SECRET`. The legacy query-secret compatibility path must not be used for new schedules. Email delivery is controlled by `app_settings.notify_email_enabled` and `app_settings.notify_dry_run`: an unset `NOTIFY_DRY_RUN` defers to the saved `notify_dry_run`; `1` forces dry-run; `0` forces live delivery. `0` can send real email when the email channel is enabled and Resend configuration and SDK are present, so use it only in an authorised send window. Live Resend additionally needs `RESEND_API_KEY`, `NOTIFY_EMAIL_FROM`, and the optional `resend` SDK. Live Stripe additionally needs its configured variables and the optional `stripe` SDK. Neither SDK is currently installed: enabling either feature on preview or production is no-go until its package is installed and the relevant smoke has passed.
+Add `/auth/callback` under the exact `NEXT_PUBLIC_SITE_URL` to Supabase Auth redirect configuration. The cron route is `/api/cron/reminders`; use an `Authorization: Bearer` header derived from `CRON_SECRET`. The legacy query-secret compatibility path must not be used for new schedules. Email delivery is controlled by `app_settings.notify_email_enabled` and `app_settings.notify_dry_run`: an unset `NOTIFY_DRY_RUN` defers to the saved `notify_dry_run`; `1` forces dry-run; `0` forces live delivery. `0` can send real email when the email channel is enabled and Resend configuration and SDK are present, so use it only in an authorised send window. Live Resend additionally needs `RESEND_API_KEY`, `NOTIFY_EMAIL_FROM`, and the optional `resend` SDK. The optional Resend SDK is not installed, so live email is no-go until it is installed and its authorised smoke passes. Stripe is hard-disabled even with SDK and keys installed: checkout POST and webhook return `503 payments_unavailable`; checkout GET redirects to the disabled packages page. Online sales are no-go until a separately reviewed, ownership-bound canonical `customer_packages` fulfillment implements verified events, idempotency, reconciliation and refund/payment smokes. The retired `user_tickets` table is never written.
 
 | `NOTIFY_DRY_RUN` | Effective dry-run state |
 | --- | --- |
@@ -37,7 +37,7 @@ Add `/auth/callback` under the exact `NEXT_PUBLIC_SITE_URL` to Supabase Auth red
 
 The local PGlite suite replays every checked-in application migration unmodified and checks real command behavior. It is a **local rehearsal**, not proof of hosted Supabase extensions, advisors, Auth, Storage, Data API, network behavior, or real multi-connection PostgreSQL scheduling.
 
-For a hosted clone/isolated project, first list and apply all migration files in ascending filename order. Do not edit a migration that may already be applied; create an additive, forward-only repair migration instead. Before opening bookings, run this read-only overlap query and require zero rows:
+For a hosted clone/isolated project, first generate the complete migration list using [setup order](supabase-setup-order.md) and apply every file in ascending filename order. The current final file is `20260915050000_final_release_integrity.sql`. Do not edit a migration that may already be applied; create an additive, forward-only repair migration instead. Before opening bookings, run this read-only overlap query and require zero rows:
 
 ```sql
 with active as (
@@ -86,11 +86,17 @@ In the clone, use two distinct customer identities and one non-admin identity. D
 - Use the calendar’s create/reschedule/cancel/status actions, rather than direct table writes. Confirm a changed appointment still has the right staff, time, status, package state, and audit record.
 - Use rest/time-off for breaks and exceptional absence; do not delete historical appointments to make a schedule appear free.
 - After each package-related cancellation, verify a session is restored at most once. Investigate any persisted notification warning; a successful booking is not reverted just because sending failed.
+- In Customer Records, create/edit contact details or manually issue a package to an Auth-bound customer. Require a reason; retries of the same issuance retain one request key and cannot add a second entitlement. Legacy phone matches never prove ownership. An unbound offline customer cannot receive an online entitlement until an explicitly verified binding workflow is available; do not link by matching email or phone.
+- Customer profile edits use canonical `customers`. The booking wizard prefills those values; reviewed booking contact changes are intentionally saved only on that appointment snapshot. To change future defaults, edit the profile.
+- Service publishing, staff active state, template/customer-package active state, shop closures and complete public contact settings use guarded audited commands. Staff with future appointments cannot be deactivated; the final active administrator is protected.
+- Customer/service CSV imports, destructive customer/package/service deletes, legacy package-service mutation and GDPR-delete endpoints are retired with guarded admin-only `410` responses. A deletion request requires a separately reviewed erasure process; do not promise it was performed.
+- Gallery metadata changes and audits are atomic. Storage bytes are not a SQL transaction: if cleanup fails, preserve the visible warning and have an authorised operator clean the exact orphan path.
+- Notification follow-up shows the failed channel and safe guidance. Confirm provider history before any manual retry. Sequential repeated customer cancellations skip a second send; external delivery is not claimed to be exactly-once under concurrent requests.
 - Before closing, review booking conflicts, failed notification outcomes, unusual admin audit events, and the backup status.
 
 ## Temporarily stop new public bookings
 
-For an incident, keep all existing `appointments` intact. In the admin scheduling/settings workflow, set the business hours to closed for every weekday; the availability/atomic booking command will then offer no public slots and reject new submissions. Record the start time and operator. Do not cancel or delete existing appointments as the shutdown action.
+For an incident, keep all existing `appointments` intact. In **營業時間及休息日期**, click **將全部星期設為關閉**, then **儲存營業時間** and wait for the saved confirmation. The guarded `/api/admin/schedule` hours command stores all seven weekdays plus its audit atomically; the availability/atomic booking command will then offer no public slots and reject new submissions. Record the start time and operator. Do not cancel or delete existing appointments as the shutdown action.
 
 This also prevents ordinary admin scheduling through the same availability rules, so coordinate manual handling of existing appointments. Reopen only the reviewed business-hour rows after the fault is resolved and run an availability smoke. If application-level emergency maintenance is required, restore the last known-good application deployment while retaining the additive schema; do not attempt a destructive database rollback.
 

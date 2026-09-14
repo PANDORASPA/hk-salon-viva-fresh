@@ -31,7 +31,7 @@ export default function DashboardModule() {
       </div>
       <div className="admin-dashboard-lists">
         <section><h3>即將到期套票</h3>{data.expiringPackages.length ? <ul>{data.expiringPackages.map(row => <li key={row.id}><strong>{row.customerName}</strong><span>{row.packageName} · 剩餘 {row.sessionsRemaining} 次</span><small>到期：{time(row.expiresAt)}</small></li>)}</ul> : <p className="admin-empty">暫無即將到期套票。</p>}</section>
-        <section><h3>通知需跟進</h3>{data.failedNotifications.length ? <ul>{data.failedNotifications.map(row => <li key={row.id}><strong>{row.event}</strong><span>預約 #{row.bookingId || '—'}</span><small>{time(row.deliveredAt)}</small></li>)}</ul> : <p className="admin-empty">沒有需要跟進的通知。</p>}</section>
+        <section><h3>通知需跟進</h3>{data.failedNotifications.length ? <ul>{data.failedNotifications.map(row => <li key={row.id}><strong>{row.eventLabel}</strong><span>預約 #{row.bookingId || '—'}</span><small>{time(row.deliveredAt)}</small><ul>{row.followUp?.map((item, index) => <li key={index}>{item.channel} · {item.outcome}：{item.message}</li>)}</ul></li>)}</ul> : <p className="admin-empty">沒有需要跟進的通知。</p>}</section>
       </div>
     </section>
   )

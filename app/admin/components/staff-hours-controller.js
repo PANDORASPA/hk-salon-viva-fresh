@@ -73,6 +73,7 @@ export function createStaffHoursController({ fetchImpl = fetch, onStateChange } 
   }
 
   const update = (weekday, patch) => {
+    if (state.saving || state.loading) return
     updateState({
       hours: state.hours.map(row => row.weekday === weekday ? { ...row, ...patch } : row),
       saveError: '',

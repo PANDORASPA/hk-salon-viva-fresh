@@ -3,23 +3,20 @@ import Link from 'next/link'
 import { getServerClient } from '../../../lib/supabase/server'
 import Nav from '../../components/i18n/Nav'
 import ProfileForm from './ProfileForm'
-import { t } from '../../../lib/i18n/dict'
+import { resolveAuthenticatedCustomer } from '../../../lib/customers/identity.js'
+import { getServiceClient } from '../../../lib/supabase/service.js'
 import { getLocale } from '../../../lib/i18n/server'
 
 export const metadata = { title: '編輯個人資料 | SALON POKE BY VIVA' }
 export const dynamic = 'force-dynamic'
 
 export default async function ProfilePage() {
-  const locale = getLocale()
+  const locale = await getLocale()
   const db = await getServerClient()
   const { data: { user } } = await db.auth.getUser()
   if (!user) redirect('/signin?redirectTo=/account/profile')
 
-  const { data: profile } = await db
-    .from('profiles')
-    .select('*')
-    .eq('id', user.id)
-    .maybeSingle()
+  const profile = await resolveAuthenticatedCustomer(db, getServiceClient())
 
   return (
     <div className="salon">
@@ -37,7 +34,7 @@ export default async function ProfilePage() {
         <div style={{ background: '#fff', border: '1px solid var(--border)', borderRadius: 8, padding: 28, maxWidth: 480 }}>
           <ProfileForm
             initialProfile={profile}
-            initialEmail={user.email}
+            initialEmail={profile?.email}
             locale={locale}
           />
         </div>

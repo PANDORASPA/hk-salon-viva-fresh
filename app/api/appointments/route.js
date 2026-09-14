@@ -37,7 +37,8 @@ export function createAppointmentsHandler({
         customer: authenticatedCustomer ? {
           ...authenticatedCustomer,
           name: Object.hasOwn(body, 'customerName') ? body.customerName : authenticatedCustomer.name,
-          phone: authenticatedCustomer.phone || body.customerPhone,
+          phone: Object.hasOwn(body, 'customerPhone') ? body.customerPhone : authenticatedCustomer.phone,
+          email: Object.hasOwn(body, 'customerEmail') ? body.customerEmail : authenticatedCustomer.email,
         } : { name: body.customerName, phone: body.customerPhone, email: body.customerEmail },
         actorUserId,
         customerPackageId: body.customerPackageId ?? null,

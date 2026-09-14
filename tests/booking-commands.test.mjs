@@ -388,11 +388,11 @@ test('account routes execute atomic reschedule/cancel with the verified actor an
   const params = { params: Promise.resolve({ id: String(original.id) }) }
   const body = { startsAt: await futureSlot(db, 4), staffPreference: 2, actorUserId: otherId }
   assert.equal((await handlers(null).PATCH(request(body, 'PATCH'), params)).status, 401)
-  assert.equal((await handlers(otherId).PATCH(request(body, 'PATCH'), params)).status, 403)
+  assert.equal((await handlers(otherId).PATCH(request(body, 'PATCH'), params)).status, 404)
   const moved = await handlers(ownerId).PATCH(request(body, 'PATCH'), params)
   assert.equal(moved.status, 200)
   assert.equal((await moved.json()).booking.staff_id, 2)
-  assert.equal((await handlers(otherId).DELETE(request(null, 'DELETE'), params)).status, 403)
+  assert.equal((await handlers(otherId).DELETE(request(null, 'DELETE'), params)).status, 404)
   await db.exec("update public.app_settings set data=data || '{\"cancel_cutoff_hours\":150}'")
   const late = await handlers(ownerId).DELETE(request(null, 'DELETE'), params)
   assert.equal(late.status, 400)

@@ -8,8 +8,24 @@ const failed = results => Object.values(results || {}).some(result => {
   return state === 'failed' || (result?.ok === false && !['disabled', 'dry_run'].includes(state))
 })
 const packageView = row => ({ id: row.id, expiresAt: row.expires_at, sessionsRemaining: row.sessions_remaining, customerName: row.customers?.name || '客戶', packageName: row.packages?.name || '套票' })
-const notificationView = row => ({ id: row.id, event: row.event, bookingId: row.booking_id, deliveredAt: row.delivered_at })
-export const __testing = { failed }
+const eventNames = { booking_confirmation: '預約通知', booking_cancellation: '取消通知', booking_reschedule: '改期通知', booking_reminder: '預約提醒' }
+const channelNames = { email: '電郵', whatsapp: 'WhatsApp', supabase: '系統記錄', console: '系統日誌' }
+const followUpMessages = {
+  no_recipient: '請核對客戶聯絡電郵或電話，再由管理員聯絡客戶。',
+  provider_not_implemented: '此通知渠道尚未接通，請使用已核實的聯絡方式。',
+  channel_results_pending: '通知結果尚未完整記錄；先核對供應商紀錄，避免重複傳送。',
+  outcome_persist_failed: '通知結果儲存失敗；先核對供應商紀錄，避免重複傳送。',
+  provider_not_configured: '請檢查通知供應商設定，並先核對客戶是否已收到通知。',
+}
+const notificationView = row => ({
+  id: row.id, event: row.event, eventLabel: eventNames[row.event] || '預約通知', bookingId: row.booking_id, deliveredAt: row.delivered_at,
+  followUp: Object.entries(row.channel_results || {}).filter(([key, result]) => channelNames[key] && failed({ result })).map(([key, result]) => ({
+    channel: channelNames[key],
+    outcome: (result.status || result.mode) === 'persistence_pending' ? '結果待核對' : '未完成',
+    message: followUpMessages[result.reason] || '請核對通知設定及供應商紀錄，再由管理員聯絡客戶。',
+  })),
+})
+export const __testing = { failed, notificationView }
 
 export function createAdminOperationsHandler({ adminContext: resolveContext = () => adminContext() } = {}) {
   return { async GET() {

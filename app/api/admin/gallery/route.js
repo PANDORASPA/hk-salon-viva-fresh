@@ -1,8 +1,38 @@
-import { NextResponse } from 'next/server'
-import { revalidatePath } from 'next/cache'
-import { adminContext,audit,jsonError } from '../../../../lib/admin/salon-api'
-import { guardMutationRequest } from '../../../../lib/security/request-guards'
-export async function GET(){const context=await adminContext();if(context.response)return context.response;const {data,error}=await context.db.from('gallery_images').select('*').order('sort_order');return error?jsonError(error):NextResponse.json({images:data||[]})}
-export async function POST(request){const guard=await guardMutationRequest(request,{rateLimit:{scope:'admin.gallery',limit:20,windowMs:60_000}});if(guard)return guard;const context=await adminContext();if(context.response)return context.response;const form=await request.formData(),file=form.get('file'),alt=String(form.get('altText')||'').trim().slice(0,240),caption=String(form.get('caption')||'').trim().slice(0,240);if(!file||typeof file.arrayBuffer!=='function'||!alt)return jsonError('Image and alt text are required.',400);if(file.size>10*1024*1024||!['image/jpeg','image/png','image/webp'].includes(file.type))return jsonError('Use a JPG, PNG or WebP image under 10 MB.',400);const extension={ 'image/jpeg':'jpg','image/png':'png','image/webp':'webp' }[file.type],path=`${Date.now()}-${crypto.randomUUID()}.${extension}`;const upload=await context.db.storage.from('salon-gallery').upload(path,await file.arrayBuffer(),{contentType:file.type,upsert:false});if(upload.error)return jsonError(upload.error);const {data,error}=await context.db.from('gallery_images').insert({storage_path:path,alt_text:alt,caption,published:true,sort_order:Number(form.get('sortOrder'))||0}).select().single();if(error){await context.db.storage.from('salon-gallery').remove([path]);return jsonError(error)}await audit(context.db,context.auth.user,'gallery.create','gallery_images',data.id);revalidatePath('/');revalidatePath('/gallery');return NextResponse.json({image:data},{status:201})}
-export async function PATCH(request){const guard=await guardMutationRequest(request);if(guard)return guard;const context=await adminContext();if(context.response)return context.response;const body=await request.json(),id=Number(body.id),update={alt_text:String(body.altText||'').trim().slice(0,240),caption:String(body.caption||'').trim().slice(0,240),published:body.published!==false,sort_order:Number(body.sortOrder)||0};if(!Number.isSafeInteger(id)||!update.alt_text)return jsonError('Invalid gallery image.',400);const {data,error}=await context.db.from('gallery_images').update(update).eq('id',id).select().single();if(error)return jsonError(error);await audit(context.db,context.auth.user,'gallery.update','gallery_images',id);revalidatePath('/');revalidatePath('/gallery');return NextResponse.json({image:data})}
-export async function DELETE(request){const guard=await guardMutationRequest(request);if(guard)return guard;const context=await adminContext();if(context.response)return context.response;const id=Number(new URL(request.url).searchParams.get('id'));const {data:row,error:findError}=await context.db.from('gallery_images').select('storage_path').eq('id',id).single();if(findError)return jsonError(findError);if(!row.storage_path.startsWith('local/')){const remove=await context.db.storage.from('salon-gallery').remove([row.storage_path]);if(remove.error)return jsonError(remove.error)}const {error}=await context.db.from('gallery_images').delete().eq('id',id);if(error)return jsonError(error);await audit(context.db,context.auth.user,'gallery.delete','gallery_images',id);revalidatePath('/');revalidatePath('/gallery');return NextResponse.json({success:true})}
+import { revalidatePath } from 'next/cache.js'
+import { adminContext,jsonError,manageAdminRecord } from '../../../../lib/admin/salon-api.js'
+import { guardMutationRequest } from '../../../../lib/security/request-guards.js'
+const refresh=()=>{revalidatePath('/');revalidatePath('/gallery')}
+async function context(request) { const guard=await guardMutationRequest(request,{rateLimit:{scope:'admin.gallery',limit:20,windowMs:60_000}}); return guard?{response:guard}:adminContext() }
+export async function GET(){const ctx=await adminContext();if(ctx.response)return ctx.response;const {data,error}=await ctx.db.from('gallery_images').select('*').order('sort_order');return error?jsonError(error):Response.json({images:data||[]})}
+export async function POST(request){
+  const ctx=await context(request);if(ctx.response)return ctx.response
+  let path
+  try {
+    const form=await request.formData(),file=form.get('file')
+    if(!file||typeof file.arrayBuffer!=='function'||file.size>10*1024*1024||!['image/jpeg','image/png','image/webp'].includes(file.type))return jsonError('請使用 10 MB 以下的 JPG、PNG 或 WebP。',400)
+    path=crypto.randomUUID()+'.'+({'image/jpeg':'jpg','image/png':'png','image/webp':'webp'}[file.type])
+    const upload=await ctx.db.storage.from('salon-gallery').upload(path,await file.arrayBuffer(),{contentType:file.type,upsert:false})
+    if(upload.error)throw new Error('圖片上載失敗。')
+    const image=await manageAdminRecord(ctx,'gallery_create',null,{storagePath:path,altText:String(form.get('altText')||'').trim(),caption:String(form.get('caption')||''),published:true,sortOrder:Number(form.get('sortOrder')||0)})
+    refresh();return Response.json({image},{status:201})
+  }catch(error){
+    if(path) { const cleanup=await ctx.db.storage.from('salon-gallery').remove([path]); if(cleanup.error)return jsonError('儲存失敗；上載檔案清理失敗，請管理員檢查圖庫儲存空間。',500) }
+    return jsonError(error,400)
+  }
+}
+export async function PATCH(request){
+  const ctx=await context(request);if(ctx.response)return ctx.response
+  try {const {id,...body}=await request.json();const image=await manageAdminRecord(ctx,'gallery_update',id,body);refresh();return Response.json({image})}catch(error){return jsonError(error,400)}
+}
+export async function DELETE(request){
+  const ctx=await context(request);if(ctx.response)return ctx.response
+  try {
+    const id=Number(new URL(request.url).searchParams.get('id'))
+    const {data:row,error}=await ctx.db.from('gallery_images').select('storage_path').eq('id',id).single()
+    if(error)throw new Error('找不到圖片。')
+    await manageAdminRecord(ctx,'gallery_delete',id,{})
+    let cleanupWarning=false
+    if(!row.storage_path.startsWith('local/')) { const cleanup=await ctx.db.storage.from('salon-gallery').remove([row.storage_path]);cleanupWarning=Boolean(cleanup.error) }
+    refresh();return Response.json({success:true,cleanupWarning})
+  }catch(error){return jsonError(error,400)}
+}

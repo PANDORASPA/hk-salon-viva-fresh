@@ -16,6 +16,7 @@ export default function BookingCalendar() {
   const [staff, setStaff] = useState([]), [services, setServices] = useState([]), [rows, setRows] = useState([])
   const [staffFilter, setStaffFilter] = useState(''), [statusFilter, setStatusFilter] = useState(''), [serviceFilter, setServiceFilter] = useState('')
   const [loading, setLoading] = useState(true), [error, setError] = useState(''), [showCreate, setShowCreate] = useState(false), [notificationWarning, setNotificationWarning] = useState(false)
+  const [mutationPending, setMutationPending] = useState(false)
   const endDay = useMemo(() => addDays(day, mode === 'week' ? 6 : 0), [day, mode])
   const criteria = useMemo(() => ({ day, endDay, staffFilter, statusFilter, serviceFilter }), [day, endDay, staffFilter, statusFilter, serviceFilter])
   const criteriaRef = useRef(criteria)
@@ -28,6 +29,7 @@ export default function BookingCalendar() {
     onLoadSuccess: data => { setRows(data.rows); setStaff(data.staff); setServices(data.services) },
     onLoadFailure: cause => setError(cause.message),
     onLoadFinish: () => setLoading(false),
+    onMutationPending: setMutationPending,
     onMutationSuccess: result => setNotificationWarning(Boolean(result.notificationWarning)),
     onMutationFailure: cause => setError(cause.message),
   }))
@@ -48,7 +50,8 @@ export default function BookingCalendar() {
     try {
       const active = calendar.current.current()
       if (!active) return
-      await active.mutate(method, payload, { refreshAfterMutation: true })
+      const result = await active.mutate(method, payload, { refreshAfterMutation: true })
+      if (!result) return
       if (!mounted.current || calendar.current.current() !== active) return
       formNode.reset(); setShowCreate(false)
     } catch {}
@@ -72,10 +75,10 @@ export default function BookingCalendar() {
         <select aria-label="篩選服務" value={serviceFilter} onChange={event => setServiceFilter(event.target.value)}><option value="">所有服務</option>{services.map(service => <option key={service.id} value={service.id}>{service.name}</option>)}</select>
         <button className="admin-action" onClick={() => setShowCreate(open => !open)}>{showCreate ? '關閉新增' : '新增預約'}</button>
       </div>
-      {showCreate ? <form className="admin-create-booking" onSubmit={event => save(event, 'POST')}><label>服務<select name="serviceId" required><option value="">選擇服務</option>{services.map(service => <option key={service.id} value={service.id}>{service.name}</option>)}</select></label><label>員工<select name="staffPreference"><option value="any">自動安排</option>{staff.map(person => <option key={person.id} value={person.id}>{person.name}</option>)}</select></label><label>時間<input name="startsAt" type="datetime-local" required /></label><label>客戶姓名<input name="customerName" required /></label><label>電話<input name="customerPhone" required /></label><button className="admin-action">建立預約</button></form> : null}
+      {showCreate ? <form className="admin-create-booking" onSubmit={event => save(event, 'POST')}><label>服務<select name="serviceId" required><option value="">選擇服務</option>{services.map(service => <option key={service.id} value={service.id}>{service.name}</option>)}</select></label><label>員工<select name="staffPreference"><option value="any">自動安排</option>{staff.map(person => <option key={person.id} value={person.id}>{person.name}</option>)}</select></label><label>時間<input name="startsAt" type="datetime-local" required /></label><label>客戶姓名<input name="customerName" required /></label><label>電話<input name="customerPhone" required /></label><button className="admin-action" disabled={mutationPending}>建立預約</button></form> : null}
       {error ? <p role="alert" className="salon-error">{error}</p> : null}
       {notificationWarning ? <p role="status" className="salon-error">預約已儲存，但通知結果未能完整記錄；請到營運總覽跟進。</p> : null}
-      {loading ? <p aria-busy="true">正在載入預約…</p> : rows.length ? <div className="admin-calendar-table"><table><caption>{mode === 'week' ? `${day} 至 ${endDay}` : day}</caption><thead><tr><th>時間</th><th>客戶</th><th>服務</th><th>員工</th><th>狀態</th><th>操作</th></tr></thead><tbody>{rows.map(row => <tr key={row.id}><td>{label(row.startsAt)}</td><td>{row.customerName}<small>{row.customerPhone}</small></td><td>{row.serviceName}</td><td>{row.staffName}</td><td><span className={`status ${row.status}`}>{statuses.find(([value]) => value === row.status)?.[1] || row.status}</span></td><td><details><summary>改期及狀態</summary><form onSubmit={event => save(event, 'PATCH')}><input type="hidden" name="id" value={row.id} /><label>新時間<input name="startsAt" type="datetime-local" defaultValue={toInput(row.startsAt)} required /></label><label>安排員工<select aria-label="改期安排員工" name="staffPreference" defaultValue={String(row.staffId || 'any')}><option value="any">自動安排</option>{staff.map(person => <option key={person.id} value={person.id}>{person.name}</option>)}</select></label><button className="admin-action">儲存改期</button></form>{row.status === 'pending' ? <div><button className="admin-action" onClick={() => changeStatus(row.id, 'confirmed')}>確認</button></div> : null}{['pending','confirmed'].includes(row.status) ? <div><button className="admin-action" onClick={() => changeStatus(row.id, 'cancelled')}>取消</button>{row.status === 'confirmed' ? <button className="admin-action" onClick={() => changeStatus(row.id, 'completed')}>完成</button> : null}<button className="admin-action" onClick={() => changeStatus(row.id, 'no_show')}>未出席</button></div> : null}</details></td></tr>)}</tbody></table></div> : <p className="admin-empty">這段時間沒有符合篩選的預約。</p>}
+      {loading ? <p aria-busy="true">正在載入預約…</p> : rows.length ? <div className="admin-calendar-table"><table><caption>{mode === 'week' ? `${day} 至 ${endDay}` : day}</caption><thead><tr><th>時間</th><th>客戶</th><th>服務</th><th>員工</th><th>狀態</th><th>操作</th></tr></thead><tbody>{rows.map(row => <tr key={row.id}><td>{label(row.startsAt)}</td><td>{row.customerName}<small>{row.customerPhone}</small></td><td>{row.serviceName}</td><td>{row.staffName}</td><td><span className={`status ${row.status}`}>{statuses.find(([value]) => value === row.status)?.[1] || row.status}</span></td><td><details><summary>改期及狀態</summary><form onSubmit={event => save(event, 'PATCH')}><input type="hidden" name="id" value={row.id} /><label>新時間<input name="startsAt" type="datetime-local" defaultValue={toInput(row.startsAt)} required /></label><label>安排員工<select aria-label="改期安排員工" name="staffPreference" defaultValue={String(row.staffId || 'any')}><option value="any">自動安排</option>{staff.map(person => <option key={person.id} value={person.id}>{person.name}</option>)}</select></label><button className="admin-action" disabled={mutationPending}>儲存改期</button></form>{row.status === 'pending' ? <div><button className="admin-action" disabled={mutationPending} onClick={() => changeStatus(row.id, 'confirmed')}>確認</button></div> : null}{['pending','confirmed'].includes(row.status) ? <div><button className="admin-action" disabled={mutationPending} onClick={() => changeStatus(row.id, 'cancelled')}>取消</button>{row.status === 'confirmed' ? <button className="admin-action" disabled={mutationPending} onClick={() => changeStatus(row.id, 'completed')}>完成</button> : null}<button className="admin-action" disabled={mutationPending} onClick={() => changeStatus(row.id, 'no_show')}>未出席</button></div> : null}</details></td></tr>)}</tbody></table></div> : <p className="admin-empty">這段時間沒有符合篩選的預約。</p>}
     </section>
   )
 }

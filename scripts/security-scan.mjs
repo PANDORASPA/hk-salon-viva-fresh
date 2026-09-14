@@ -164,10 +164,9 @@ function hasDynamicJavaScriptTail(text, index) {
   if (assertion) return hasDynamicTypeAssertionTail(text, cursor + assertion[0].length)
   if (sawNewline) {
     const tail = text.slice(cursor)
-    if (/^(?:process|globalThis)\b/.test(tail) || /^[A-Za-z_$][\w$]*\s*\(/.test(tail)) return true
-    // A newline is an automatic-semicolon-insertion boundary unless a known
-    // continuation follows. The explicit dynamic forms above remain blocked.
-    return false
+    // ASI does not terminate a literal before member/call access or operators.
+    // An identifier beginning a new statement is independent of this value.
+    return /^(?:[.\[(`+*/%<>=&|^?-]|\b(?:in|instanceof)\b)/.test(tail)
   }
   return true
 }

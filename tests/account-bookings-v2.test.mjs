@@ -63,7 +63,7 @@ test('confirmation loader accepts only the owner or the matching unguessable tok
     serverDatabase: queryDatabase(appointment, ownerCalls), serviceDatabase: { from() { throw new Error('owner must not need service lookup') } },
   })
   assert.equal(owned.id, 42)
-  assert.deepEqual(ownerCalls[0].filters, [['id', 42], ['user_id', ownerId]])
+  assert.deepEqual(ownerCalls[0].filters, [['id', 42]]) // Owner filtering is enforced by authenticated RLS; private user_id has no column grant.
 
   const tokenCalls = []
   const tokenBooking = await loadConfirmationAppointment({

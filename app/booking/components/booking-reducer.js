@@ -19,10 +19,13 @@ export function bookingReducer(state, action) {
       return { ...state, staffPreference: action.staffPreference, startsAt: '', error: '' }
     case 'SELECT_SLOT':
       return { ...state, date: action.date, startsAt: action.startsAt, error: '' }
+    case 'PREFILL_CONTACT':
+      return state.contactEdited ? state : { ...state, contact: { ...state.contact, ...action.contact } }
     case 'SET_CONTACT':
       return {
         ...state,
         contact: { ...state.contact, ...(action.contact || {}) },
+        contactEdited: state.contactEdited || Boolean(action.contact),
         ...(typeof action.acceptedTerms === 'boolean' ? { acceptedTerms: action.acceptedTerms } : {}),
         error: '',
       }

@@ -1,6 +1,33 @@
-import { NextResponse } from 'next/server'
-import { adminContext,audit,jsonError } from '../../../../lib/admin/salon-api'
-import { guardMutationRequest } from '../../../../lib/security/request-guards'
-export async function GET(){const context=await adminContext();if(context.response)return context.response;const [hours,blocks]=await Promise.all([context.db.from('business_hours').select('*').order('weekday'),context.db.from('blocked_dates').select('*').order('starts_on')]);const error=hours.error||blocks.error;return error?jsonError(error):NextResponse.json({hours:hours.data||[],blockedDates:blocks.data||[]})}
-export async function POST(request){const guard=await guardMutationRequest(request,{rateLimit:{scope:'admin.schedule',limit:30,windowMs:60_000}});if(guard)return guard;const context=await adminContext();if(context.response)return context.response;const body=await request.json();if(body.type==='hours'){const rows=(body.hours||[]).map(row=>({weekday:Number(row.weekday),is_open:Boolean(row.is_open),opens_at:row.is_open?row.opens_at:null,closes_at:row.is_open?row.closes_at:null}));if(rows.length!==7)return jsonError('All seven weekdays are required.',400);const {error}=await context.db.from('business_hours').upsert(rows,{onConflict:'weekday'});if(error)return jsonError(error);await audit(context.db,context.auth.user,'schedule.hours','business_hours','all');return NextResponse.json({success:true})}const row={starts_on:String(body.startsOn||''),ends_on:String(body.endsOn||body.startsOn||''),reason:String(body.reason||'').slice(0,240)};if(!/^\d{4}-\d{2}-\d{2}$/.test(row.starts_on)||!/^\d{4}-\d{2}-\d{2}$/.test(row.ends_on)||row.ends_on<row.starts_on)return jsonError('Invalid blocked date.',400);const {data,error}=await context.db.from('blocked_dates').insert(row).select().single();if(error)return jsonError(error);await audit(context.db,context.auth.user,'schedule.block','blocked_dates',data.id);return NextResponse.json({blockedDate:data},{status:201})}
-export async function DELETE(request){const guard=await guardMutationRequest(request);if(guard)return guard;const context=await adminContext();if(context.response)return context.response;const id=Number(new URL(request.url).searchParams.get('id'));if(!Number.isSafeInteger(id))return jsonError('Invalid date.',400);const {error}=await context.db.from('blocked_dates').delete().eq('id',id);if(error)return jsonError(error);await audit(context.db,context.auth.user,'schedule.unblock','blocked_dates',id);return NextResponse.json({success:true})}
+import { adminContext, jsonError, manageAdminRecord } from '../../../../lib/admin/salon-api.js'
+import { guardMutationRequest } from '../../../../lib/security/request-guards.js'
+
+export function createAdminScheduleHandlers({ adminContext: resolveContext=adminContext, guardMutationRequest: guard=guardMutationRequest }={}) {
+  async function context(request) {
+    const denied=await guard(request,{rateLimit:{scope:'admin.schedule',limit:30,windowMs:60_000}})
+    return denied ? {response:denied} : resolveContext()
+  }
+  return {
+    async GET() {
+      const ctx=await resolveContext(); if(ctx.response)return ctx.response
+      const [hours,blocks]=await Promise.all([ctx.db.from('business_hours').select('*').order('weekday'),ctx.db.from('blocked_dates').select('*').order('starts_on')])
+      return hours.error||blocks.error?jsonError('未能載入營業時間。'):Response.json({hours:hours.data||[],blockedDates:blocks.data||[]})
+    },
+    async POST(request) {
+      const ctx=await context(request); if(ctx.response)return ctx.response
+      try {
+        const {type,...body}=await request.json()
+        if(type==='hours') return Response.json({hours:await manageAdminRecord(ctx,'schedule_hours',null,body)})
+        if(type!=='closure') return jsonError('請選擇有效的時間操作。',400)
+        return Response.json({blockedDate:await manageAdminRecord(ctx,'closure',null,body)},{status:201})
+      } catch(error) { return jsonError(error,400) }
+    },
+    async DELETE(request) {
+      const ctx=await context(request); if(ctx.response)return ctx.response
+      try { await manageAdminRecord(ctx,'closure_delete',Number(new URL(request.url).searchParams.get('id')),{}); return Response.json({success:true}) } catch(error) { return jsonError(error,400) }
+    },
+  }
+}
+const handlers=createAdminScheduleHandlers()
+export const GET=handlers.GET
+export const POST=handlers.POST
+export const DELETE=handlers.DELETE

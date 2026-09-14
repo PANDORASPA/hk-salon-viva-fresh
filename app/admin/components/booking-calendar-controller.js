@@ -23,10 +23,12 @@ export function createBookingCalendarController({
   onLoadFinish,
   onMutationSuccess,
   onMutationFailure,
+  onMutationPending,
 } = {}) {
   let generation = 0
   let activeRequest = null
   let disposed = false
+  let mutationPending = false
 
   const cancel = () => {
     generation += 1
@@ -71,6 +73,9 @@ export function createBookingCalendarController({
   }
 
   const mutate = async (method, payload, { refreshAfterMutation = false } = {}) => {
+    if (disposed || mutationPending) return null
+    mutationPending = true
+    onMutationPending?.(true)
     try {
       const response = await fetchImpl('/api/admin/appointments', { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
       const result = await readJson(response)
@@ -83,6 +88,9 @@ export function createBookingCalendarController({
     } catch (error) {
       if (!disposed) onMutationFailure?.(error)
       throw error
+    } finally {
+      mutationPending = false
+      if (!disposed) onMutationPending?.(false)
     }
   }
 

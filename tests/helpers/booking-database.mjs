@@ -83,8 +83,21 @@ export async function callSql(db, name, input) {
 // Transport adapter: wrappers/routes execute their real production code while
 // their RPC reaches the real migrated PostgreSQL functions.
 export function rpcClient(db) {
-  return { async rpc(name, input) {
-    try { return { data: await callSql(db, name, input), error: null } }
+  return { from(table) {
+    if (!['customers', 'appointments'].includes(table)) throw new Error('Unsupported test transport table')
+    const filters = []; let change
+    return {
+      select() { return this }, eq(key, value) { if (!['id', 'user_id'].includes(key)) throw new Error('Unexpected filter'); filters.push([key, value]); return this },
+      update(value) { change = value; return this },
+      async maybeSingle() {
+        const values = []; const assignments = Object.entries(change || {}).map(([key, value]) => { if (!['name','phone','email','updated_at'].includes(key)) throw new Error('Unexpected update'); values.push(value); return `${key}=$${values.length}` })
+        const where = filters.map(([key, value]) => { values.push(value); return `${key}=$${values.length}` }).join(' and ')
+        try { const result = await db.query(change ? `update public.${table} set ${assignments.join(',')} where ${where} returning *` : `select * from public.${table} where ${where}`, values); return { data: result.rows[0] || null, error: null } } catch (error) { return { data: null, error } }
+      },
+      single() { return this.maybeSingle() },
+    }
+  }, async rpc(name, input) {
+    try { const row = await callSql(db, name, input); return { data: row[name] ?? row, error: null } }
     catch (error) { return { data: null, error } }
   } }
 }

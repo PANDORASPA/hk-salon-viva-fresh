@@ -88,6 +88,7 @@ export function createAccountBookingHandlers({
           startsAt = localStartsAt(body.date, body.time)
         }
         const commandDb = await serviceClient()
+        await readAccountBooking(commandDb, appointmentId, user.id)
         const booking = await rescheduleAppointment(commandDb, {
           appointmentId, startsAt, staffPreference: body.staffPreference ?? body.staffId,
           actorUserId: user.id,
@@ -103,8 +104,9 @@ export function createAccountBookingHandlers({
         const appointmentId = await idFrom(context)
         const { user } = await actor()
         const commandDb = await serviceClient()
+        const previous = await readAccountBooking(commandDb, appointmentId, user.id)
         const booking = await cancelAppointment(commandDb, { appointmentId, actorUserId: user.id })
-        await send('booking_cancellation', booking)
+        if (previous.status !== 'cancelled') await send('booking_cancellation', booking)
         const view = await commandAccountBooking(commandDb, booking, user.id)
         return Response.json({
           booking: view,

@@ -15,7 +15,7 @@ export const metadata = { title: '我的帳戶 | SALON POKE BY VIVA', robots: { 
 export const dynamic = 'force-dynamic'
 
 export default async function AccountPage() {
-  const locale = getLocale()
+  const locale = await getLocale()
   const db = await getServerClient()
   const { data: { user } } = await db.auth.getUser()
   if (!user || user.is_anonymous) redirect(`/signin?redirectTo=/account`)
@@ -23,8 +23,7 @@ export default async function AccountPage() {
   const customer = await resolveAuthenticatedCustomer(db, serviceDb)
   if (!customer) redirect(`/signin?redirectTo=/account`)
 
-  const [{ data: profile }, { data: appointments }, customerPackages, { data: siteContent }] = await Promise.all([
-    db.from('profiles').select('*').eq('id', user.id).maybeSingle(),
+  const [{ data: appointments }, customerPackages, { data: siteContent }] = await Promise.all([
     serviceDb.from('appointments')
       .select(ACCOUNT_BOOKING_SELECT)
       .eq('user_id', user.id)
@@ -43,7 +42,7 @@ export default async function AccountPage() {
           {t('account.title', locale)}
         </h1>
         <p style={{ color: '#706961', marginBottom: 32 }}>
-          {t('account.signedIn', locale)}：{profile?.full_name || user.email}
+          {t('account.signedIn', locale)}：{customer.name || user.email}
         </p>
         <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 40 }}>
           <Link className="salon-button" href="/booking">{t('account.cta.book', locale)}</Link>

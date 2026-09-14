@@ -7,11 +7,11 @@
 - `SUPABASE_SERVICE_ROLE_KEY` — server only, never prefixed with `NEXT_PUBLIC_`
 - `NEXT_PUBLIC_SITE_URL`
 
-Set all four for Preview and Production. Use the Preview URL while testing; set the production value to `https://lo-chan-hair-bristol.vercel.app` only for the production environment.
+Use separate reviewed Preview and Production project settings. Set the exact authorised origin for each environment; no historical Bristol URL is a production default. Follow the [current operations runbook](booking-platform-operations.md) and [launch checklist](launch-checklist-2026-09-14.md). Online Stripe payments remain hard-disabled regardless of environment configuration.
 
 ## Release procedure
 
-1. Apply migrations and seed to the controlled Supabase project.
+1. Confirm a recoverable backup, rehearse all current migrations on an isolated clone, and obtain explicit approval before target migration. Never automatically apply demo seeds to production.
 2. Configure Preview variables in Vercel.
 3. Deploy the feature branch and run the complete public, booking, customer, and admin browser checks.
 4. Inspect build and runtime error logs.

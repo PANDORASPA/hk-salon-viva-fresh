@@ -1,3 +1,7 @@
+# RETIRED — earlier platform launch checklist
+
+Do not execute this historical checklist. Its schema, brand and Stripe fulfillment refer to a retired platform. The current release uses `appointments` and `customer_packages`, and online Stripe payments are hard-disabled. Use the [current launch checklist](launch-checklist-2026-09-14.md) and [operations runbook](booking-platform-operations.md).
+
 # PANDORA HEAD SPA Launch Checklist
 
 Use [`PALACEHAIRSPA_REPLACEMENT_ACCEPTANCE.md`](./PALACEHAIRSPA_REPLACEMENT_ACCEPTANCE.md) as the acceptance board for the Palace Hair Spa replacement and PANDORA HEAD SPA launch readiness.

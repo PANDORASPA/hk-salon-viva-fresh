@@ -5,8 +5,8 @@ import { adminContext, jsonError } from '../../../../lib/admin/salon-api'
  * GET /api/admin/audit-logs?limit=100&offset=0&action=...
  *
  * Returns the admin audit log. Admin-only (via proxy.js + adminContext).
- * The table is append-only and rows are written by `tryWriteAdminAuditLog`
- * on every admin mutation, so this endpoint is the canonical "what did
+ * Mutation RPCs write before/after audit rows in the same transaction.
+ * This endpoint is the canonical "what did
  * admins do today" view.
  */
 export async function GET(request) {

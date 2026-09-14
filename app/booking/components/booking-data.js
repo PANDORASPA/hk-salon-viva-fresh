@@ -11,7 +11,14 @@ export async function loadCustomerPackages(fetcher, signal) {
   const response = await fetcher('/api/customers/me', { signal })
   const body = await response.json()
   if (!response.ok) throw new Error(errorMessage(body, response.status === 401 ? '登入狀態已失效，請重新登入。' : '暫時無法載入套票'))
-  return packageResult(body.customer?.customer_packages || [])
+  const customer = body.customer
+  return { ...packageResult(customer?.customer_packages || []), contact: { name: customer?.name || '', phone: customer?.phone || '', email: customer?.email || '' } }
+}
+
+export function filterCustomerPackages(packages, serviceId, startsAt) {
+  const start = Date.parse(startsAt)
+  return packages.filter(row => row.is_active === true && row.sessions_remaining > 0 && Date.parse(row.expires_at) > start
+    && row.packages?.is_active === true && row.packages.package_services?.some(link => Number(link.service_id) === Number(serviceId)))
 }
 
 export async function loadAvailability(fetcher, { date, serviceId, staffPreference }, signal) {

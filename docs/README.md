@@ -3,14 +3,18 @@
 This folder holds the operational, historical, and acceptance docs for the site.
 Application source code lives in `app/`, `lib/`, `content/`, and `supabase/`.
 
+## Current release
+
+Use [Booking platform operations](booking-platform-operations.md), the [2026-09-14 launch checklist](launch-checklist-2026-09-14.md), and [generated migration inventory](supabase-setup-order.md). The generic earlier launch checklist, historical Bristol inventory and September 7 reports are not current release authority. Hosted E2E, migration/role/concurrency rehearsal and preview/production smoke still require separate evidence. Stripe online sales are hard-disabled.
+
 ## Layout
 
 ```
 docs/
   README.md                    ← you are here
   architecture.md              ← system diagram + data model + file map
-  launch-checklist.md          ← what to verify before going live
-  launch-report-2026-09-07.md  ← record of the most recent code freeze
+  launch-checklist-2026-09-14.md ← current release gates
+  launch-report-2026-09-07.md  ← historical code-freeze record
   phase2-smoke-checklist.md    ← manual smoke tests for the booking engine
   supabase-setup-order.md      ← canonical migration order + legacy notes
   validation-report.md         ← last live-schema validation snapshot

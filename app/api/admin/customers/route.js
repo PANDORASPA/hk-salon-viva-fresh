@@ -1,33 +1,8 @@
-import { NextResponse } from 'next/server'
-import { adminContext, audit, jsonError } from '../../../../lib/admin/salon-api'
-import { guardMutationRequest } from '../../../../lib/security/request-guards'
+import { adminContext, jsonError, createRecordMutation, routeRecordId, retiredAdminMutation, manageAdminRecord } from '../../../../lib/admin/salon-api.js'
 
 export async function GET() {
-  const ctx = await adminContext()
-  if (ctx.response) return ctx.response
-  const { data, error } = await ctx.db
-    .from('customers')
-    .select('*, customer_packages(count)')
-    .order('created_at', { ascending: false })
-    .limit(500)
-  if (error) return jsonError(error)
-  return NextResponse.json({ customers: data || [] })
+  const ctx=await adminContext(); if(ctx.response)return ctx.response
+  const {data,error}=await ctx.db.from('customers').select('*, customer_packages(count)').order('created_at',{ascending:false}).limit(500)
+  return error?jsonError(error):Response.json({customers:data||[]})
 }
-
-export async function POST(request) {
-  const guard = await guardMutationRequest(request, { rateLimit: { scope: 'admin.customers', limit: 30, windowMs: 60_000 } })
-  if (guard) return guard
-  const ctx = await adminContext()
-  if (ctx.response) return ctx.response
-  const body = await request.json()
-  const { name, phone, email, notes } = body
-  if (!name || !phone) return jsonError('name and phone are required.', 400)
-  const { data, error } = await ctx.db
-    .from('customers')
-    .insert({ name: String(name).trim(), phone: String(phone).trim(), email: email || null, notes: notes || null })
-    .select()
-    .single()
-  if (error) return jsonError(error)
-  await audit(ctx.db, ctx.auth.user, 'customer.create', 'customers', data.id)
-  return NextResponse.json({ customer: data }, { status: 201 })
-}
+export const POST=createRecordMutation({kind:'customer',key:'customer',status:201})

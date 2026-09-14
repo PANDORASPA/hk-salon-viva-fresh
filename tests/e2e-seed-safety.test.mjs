@@ -65,3 +65,26 @@ test('seed cleanup and state restoration both run when a mutation step fails', a
   )
   assert.deepEqual(events, ['mutate', 'cleanup'])
 })
+
+test('cleanup removes only fixture issuance keys before their customer package parents', async () => {
+  const calls = []
+  const config = { ...e2eConfig(valid), runtimeStateFile: join(tmpdir(), 'nonexistent-final-fixture-state.json') }
+  const db = {
+    auth: { admin: { listUsers: async () => ({ data: { users: [{ id: 'fixture-owner', email: config.customerEmail }] } }), deleteUser: async () => ({ error: null }) } },
+    from(table) {
+      let remove = false
+      const query = {
+        select() { return this }, delete() { remove = true; return this },
+        eq() { return this },
+        in(field, ids) { if (remove) calls.push([table, field, ids]); return this },
+        then(resolve, reject) { return Promise.resolve({ error: null, data: remove ? null : ['customers', 'customer_packages'].includes(table) ? [{ id: 17 }] : [] }).then(resolve, reject) },
+      }
+      return query
+    },
+  }
+  await cleanupE2EFixtures({ db, config, restoreState: false })
+  const issuance = calls.findIndex(([table]) => table === 'admin_package_issuances')
+  const parent = calls.findIndex(([table]) => table === 'customer_packages')
+  assert.ok(issuance >= 0 && issuance < parent)
+  assert.deepEqual(calls[issuance], ['admin_package_issuances', 'customer_package_id', [17]])
+})

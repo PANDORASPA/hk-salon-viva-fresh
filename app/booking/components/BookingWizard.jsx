@@ -9,7 +9,7 @@ import TimeStep from './TimeStep'
 import ContactStep from './ContactStep'
 import ReviewStep from './ReviewStep'
 import { hongKongDate } from './booking-time'
-import { loadAvailability, loadCustomerPackages } from './booking-data'
+import { loadAvailability, loadCustomerPackages, filterCustomerPackages, packageResult } from './booking-data'
 import { confirmationUrl } from './booking-confirmation'
 
 const stepLabels = ['服務', '員工', '時間', '聯絡方式', '確認']
@@ -33,6 +33,9 @@ export default function BookingWizard({ services = [], authenticated = false }) 
   const [packageRefresh, setPackageRefresh] = useState(0)
   const [availabilityRefresh, setAvailabilityRefresh] = useState(0)
   const headingRef = useRef(null)
+  const submitLock = useRef(false)
+  const eligiblePackages = filterCustomerPackages(packageState.packages, state.serviceId, state.startsAt)
+  const reviewPackages = ['ready','empty'].includes(packageState.status) ? packageResult(eligiblePackages) : packageState
 
   const selectedService = useMemo(() => serviceOptions.find((service) => String(service.id) === String(state.serviceId)), [serviceOptions, state.serviceId])
   const selectedStaff = useMemo(() => staff.find((person) => String(person.id) === String(state.staffPreference)), [staff, state.staffPreference])
@@ -51,7 +54,7 @@ export default function BookingWizard({ services = [], authenticated = false }) 
     if (!authenticated) return undefined
     let active = true
     setPackageState({ status: 'loading', packages: [] })
-    loadCustomerPackages(fetch).then((result) => { if (active) setPackageState(result) })
+    loadCustomerPackages(fetch).then((result) => { if (active) { setPackageState(result); dispatch({ type: 'PREFILL_CONTACT', contact: result.contact }) } })
       .catch((error) => { if (active) setPackageState({ status: 'error', packages: [], error: error.message }) })
     return () => { active = false }
   }, [authenticated, packageRefresh])
@@ -96,6 +99,9 @@ export default function BookingWizard({ services = [], authenticated = false }) 
         : state.step === 4 ? Boolean(state.contact.name.trim() && state.contact.phone.trim()) : false
 
   async function submit() {
+    if (submitLock.current) return
+    if (state.customerPackageId && !eligiblePackages.some(row => String(row.id) === String(state.customerPackageId))) { dispatch({ type: 'SELECT_PACKAGE', customerPackageId: '' }); dispatch({ type: 'SUBMIT_ERROR', error: '所選套票不適用於此服務或日期，請重新選擇。' }); return }
+    submitLock.current = true
     dispatch({ type: 'SUBMIT_START' })
     try {
       const response = await fetch('/api/appointments', {
@@ -119,14 +125,14 @@ export default function BookingWizard({ services = [], authenticated = false }) 
       router.push(confirmationUrl(body))
     } catch {
       dispatch({ type: 'SUBMIT_ERROR', error: '網絡連線出現問題，請稍後再試。' })
-    }
+    } finally { submitLock.current = false }
   }
 
   const stepComponent = state.step === 1 ? <ServiceStep headingRef={headingRef} services={serviceOptions} selectedServiceId={state.serviceId} onSelect={(serviceId) => dispatch({ type: 'SELECT_SERVICE', serviceId })} />
     : state.step === 2 ? <StaffStep headingRef={headingRef} staff={staff} staffPreference={state.staffPreference} loading={staffLoading} error={staffError} onSelect={(staffPreference) => dispatch({ type: 'SELECT_STAFF', staffPreference })} onRetry={() => setStaffRefresh((value) => value + 1)} />
       : state.step === 3 ? <TimeStep headingRef={headingRef} date={state.date} minDate={hongKongDate()} slots={slots} selectedSlot={state.startsAt} loading={availabilityLoading} message={availabilityMessage} onDateChange={(date) => dispatch({ type: 'SELECT_SLOT', date, startsAt: '' })} onSelect={(startsAt) => dispatch({ type: 'SELECT_SLOT', date: state.date, startsAt })} />
         : state.step === 4 ? <ContactStep headingRef={headingRef} contact={state.contact} authenticated={authenticated} onChange={(contact) => dispatch({ type: 'SET_CONTACT', contact })} />
-          : <ReviewStep headingRef={headingRef} state={state} service={selectedService} staff={selectedStaff} packageState={packageState} authenticated={authenticated} onPackageChange={(customerPackageId) => dispatch({ type: 'SELECT_PACKAGE', customerPackageId })} onTermsChange={(acceptedTerms) => dispatch({ type: 'SET_CONTACT', acceptedTerms })} onSubmit={submit} onRetryPackages={() => setPackageRefresh((value) => value + 1)} />
+          : <ReviewStep headingRef={headingRef} state={state} service={selectedService} staff={selectedStaff} packageState={reviewPackages} authenticated={authenticated} onPackageChange={(customerPackageId) => dispatch({ type: 'SELECT_PACKAGE', customerPackageId })} onTermsChange={(acceptedTerms) => dispatch({ type: 'SET_CONTACT', acceptedTerms })} onSubmit={submit} onRetryPackages={() => setPackageRefresh((value) => value + 1)} />
 
   return (
     <div className="booking-wizard">

@@ -1,30 +1,26 @@
 # Salon Poke Admin Operations
 
+The [current operations runbook](booking-platform-operations.md) and [launch checklist](launch-checklist-2026-09-14.md) are authoritative. This quick reference does not authorise a migration, demo seed, external send or production deployment.
+
 ## First administrator
 
-1. Apply all migrations and the Salon Poke seed.
-2. Create the owner in Supabase Authentication using a private email and a unique password. Do not put the password in Git, Vercel comments, screenshots, or chat.
-3. Copy the Auth user's UUID and run this once in the Supabase SQL editor:
+An authorised operator creates the first Auth identity and its active `admin_users` entry in the controlled target, recording the bootstrap in the change log. Use reviewed migrations after backup/rehearsal; do not automatically load demo data. Never put passwords, private contact details or keys in Git, screenshots or release notes.
 
-```sql
-insert into public.admin_users (user_id, is_active)
-values ('AUTH-USER-UUID', true)
-on conflict (user_id) do update set is_active = true;
-```
-
-4. Sign in at `/admin/login`. Add future administrators from the Administrators module.
-
-The database prevents revocation or deletion of the final active administrator.
+After bootstrap, manage administrator state through the audited Administrators module. SQL protects the final active administrator.
 
 ## Routine use
 
-- Appointments: confirm requests, complete services, cancel, or mark no-show.
-- Services: add services and publish/unpublish prices shown to customers.
-- Schedule: maintain all seven weekdays and add exceptional closures.
-- Gallery: upload JPG, PNG, or WebP images under 10 MB with meaningful alt text.
-- Site content: keep WhatsApp, email, Instagram, area, salon name, and hero title current.
-- Administrators: invite only trusted staff and revoke access promptly when it is no longer required.
+- Calendar: create, reschedule, confirm, complete, cancel or mark no-show; mutations and before/after audit commit together.
+- Customer Records: create/edit canonical contacts; manually issue packages only to an Auth-bound customer, with a reason and a retry-stable request key. Do not link accounts by matching phone/email.
+- Services and Packages: edit prices/mappings, publish services, activate/deactivate templates and reasoned customer entitlements. Stripe online purchases are hard-disabled.
+- Staff: edit skills, active state, all seven weekdays and exceptional time off. Future appointments must be handled before deactivation.
+- Schedule: maintain shop hours and exceptional closure dates. For emergency shutdown click **將全部星期設為關閉**, then **儲存營業時間**. Preserve all existing appointments.
+- Gallery: upload approved JPG/PNG/WebP under 10 MB with meaningful alt text. A storage-cleanup warning requires exact-path operator follow-up.
+- Site Content: manage phone, email, WhatsApp, Instagram HTTPS URL, address and arrival note. Blank contacts remain hidden.
+- Notifications: review the failed channel and follow-up instructions; check provider history before retrying.
+
+CSV import and unsafe legacy delete/GDPR-delete endpoints are retired with guarded admin-only `410` responses. Use audited editing; erasure needs a separately reviewed process and must never be described as completed when disabled.
 
 ## Recovery
 
-Database data should be backed up using Supabase backups before schema changes. Gallery originals live in the `salon-gallery` Storage bucket. Application rollback uses the previous READY Vercel deployment; database migrations are forward-only and must be reviewed separately before rollback.
+Confirm a recoverable backup before any target schema change. Restore an application deployment only after checking additive-schema compatibility. Never delete appointments, entitlement history or audit rows as a rollback shortcut.

@@ -222,8 +222,8 @@ test('security scan classifies JavaScript expression tails and module-qualified 
     { category: 'property access', file: 'fixture.ts', source: `const ${key} = 'literal'.trim()`, expected: [] },
     { category: 'index access', file: 'fixture.ts', source: `const ${key} = 'literal'[0]`, expected: [] },
     { category: 'call access', file: 'fixture.ts', source: `const ${key} = 'literal'()`, expected: [] },
-    { category: 'environment identifier across newline', file: 'fixture.ts', source: `const ${key} = 'literal'\nprocess.env.INTERNAL_SECRET`, expected: [] },
-    { category: 'function identifier across newline', file: 'fixture.ts', source: `const ${key} = 'literal'\ngetSecret()`, expected: [] },
+    { category: 'independent environment statement across newline', file: 'fixture.ts', source: `const ${key} = 'literal'\nprocess.env.INTERNAL_SECRET`, expected: [{ line: 1, label: 'Supabase service role key' }] },
+    { category: 'independent function statement across newline', file: 'fixture.ts', source: `const ${key} = 'literal'\ngetSecret()`, expected: [{ line: 1, label: 'Supabase service role key' }] },
     { category: 'module-qualified Get-Secret command', file: 'fixture.ps1', source: `$env:${stripe} = Microsoft.PowerShell.SecretManagement\\Get-Secret`, expected: [] },
   ]
 
