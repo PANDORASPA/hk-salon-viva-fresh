@@ -15,6 +15,7 @@ const harmlessValue = value => {
 }
 
 const labelFor = name => {
+  name = name.toUpperCase()
   if (name === 'SUPABASE_SERVICE_ROLE_KEY') return 'Supabase service role key'
   if (name === 'STRIPE_SECRET_KEY') return 'Stripe secret key'
   if (name === 'STRIPE_WEBHOOK_SECRET') return 'Stripe webhook secret'
@@ -23,60 +24,27 @@ const labelFor = name => {
 
 const lineAt = (text, index) => text.slice(0, index).split(/\r?\n/).length
 
-function maskNonCode(text) {
-  const mask = text.split('')
-  const hide = index => { if (mask[index] !== '\n' && mask[index] !== '\r') mask[index] = ' ' }
-  let quote = null
-  for (let index = 0; index < text.length; index += 1) {
-    const char = text[index]
-    const next = text[index + 1]
-    if (quote) {
-      hide(index)
-      if (char === '\\') { hide(index + 1); index += 1 }
-      else if (char === quote) quote = null
-      continue
-    }
-    if (char === '"' || char === "'" || char === '`') { quote = char; hide(index); continue }
-    if (char === '/' && next === '/') {
-      while (index < text.length && text[index] !== '\n') { hide(index); index += 1 }
-      continue
-    }
-    if (char === '/' && next === '*') {
-      hide(index); hide(index + 1); index += 2
-      while (index < text.length && !(text[index] === '*' && text[index + 1] === '/')) { hide(index); index += 1 }
-      hide(index); hide(index + 1); index += 1
-      continue
-    }
-    if (char === '#' && (index === 0 || /\s/.test(text[index - 1]))) {
-      while (index < text.length && text[index] !== '\n') { hide(index); index += 1 }
-    }
-  }
-  return mask.join('')
-}
-
-function skipTrivia(text, index, { allowNewlines = false } = {}) {
+function skipTrivia(text, index, { allowNewlines = false, language = 'javascript' } = {}) {
   let cursor = index
   while (cursor < text.length) {
     while (/\s/.test(text[cursor] || '')) {
       if (!allowNewlines && /\r|\n/.test(text[cursor])) return cursor
       cursor += 1
     }
-    if (text.startsWith('//', cursor)) {
+    if (language === 'javascript' && text.startsWith('//', cursor)) {
       cursor = text.indexOf('\n', cursor + 2)
-      if (cursor === -1) return text.length
-      if (!allowNewlines) return cursor
+      if (cursor === -1 || !allowNewlines) return cursor === -1 ? text.length : cursor
       continue
     }
-    if (text.startsWith('/*', cursor)) {
+    if (language === 'javascript' && text.startsWith('/*', cursor)) {
       const end = text.indexOf('*/', cursor + 2)
       if (end === -1) return text.length
       cursor = end + 2
       continue
     }
-    if (text[cursor] === '#') {
+    if ((language === 'shell' || language === 'powershell') && text[cursor] === '#') {
       cursor = text.indexOf('\n', cursor + 1)
-      if (cursor === -1) return text.length
-      if (!allowNewlines) return cursor
+      if (cursor === -1 || !allowNewlines) return cursor === -1 ? text.length : cursor
       continue
     }
     break
@@ -84,7 +52,50 @@ function skipTrivia(text, index, { allowNewlines = false } = {}) {
   return cursor
 }
 
-function readLiteral(text, index, allowBare) {
+function lexCode(text, language) {
+  const mask = text.split('')
+  const quotedKeys = []
+  const hide = index => { if (mask[index] !== '\n' && mask[index] !== '\r') mask[index] = ' ' }
+  for (let index = 0; index < text.length; index += 1) {
+    const char = text[index]
+    const next = text[index + 1]
+    if (char === '"' || char === "'" || (language === 'javascript' && char === '`')) {
+      const quote = char
+      const start = index
+      index += 1
+      for (; index < text.length; index += 1) {
+        if (text[index] === '\\') { hide(index); hide(index + 1); index += 1; continue }
+        if (text[index] === quote) break
+        hide(index)
+      }
+      hide(start); hide(index)
+      if (index < text.length && quote !== '`') {
+        const name = text.slice(start + 1, index)
+        const after = skipTrivia(text, index + 1, { allowNewlines: true, language })
+        if (text[after] === ':' && new RegExp(String.raw`^${secretNames}$`, language === 'powershell' ? 'i' : '').test(name)) {
+          quotedKeys.push({ name, index: start + 1, valueIndex: after + 1 })
+        }
+      }
+      continue
+    }
+    if (language === 'javascript' && char === '/' && next === '/') {
+      while (index < text.length && text[index] !== '\n') { hide(index); index += 1 }
+      continue
+    }
+    if (language === 'javascript' && char === '/' && next === '*') {
+      hide(index); hide(index + 1); index += 2
+      while (index < text.length && !(text[index] === '*' && text[index + 1] === '/')) { hide(index); index += 1 }
+      hide(index); hide(index + 1); index += 1
+      continue
+    }
+    if ((language === 'shell' || language === 'powershell') && char === '#' && (index === 0 || /\s/.test(text[index - 1]))) {
+      while (index < text.length && text[index] !== '\n') { hide(index); index += 1 }
+    }
+  }
+  return { mask: mask.join(''), quotedKeys }
+}
+
+function readLiteral(text, index, allowBare, { dynamicVariables = false } = {}) {
   const quote = text[index]
   if (quote === '"' || quote === "'" || quote === '`') {
     let cursor = index + 1
@@ -92,7 +103,11 @@ function readLiteral(text, index, allowBare) {
       if (text[cursor] === '\\') { cursor += 1; continue }
       if (quote !== '`' && /\r|\n/.test(text[cursor])) return null
       if (quote === '`' && text[cursor] === '$' && text[cursor + 1] === '{') return null
-      if (text[cursor] === quote) return { value: text.slice(index, cursor + 1) }
+      if (text[cursor] === quote) {
+        const value = text.slice(index, cursor + 1)
+        if (dynamicVariables && /\$(?:\{|[A-Za-z_])/.test(value)) return null
+        return { value }
+      }
     }
     return null
   }
@@ -119,18 +134,30 @@ function typeAnnotationEquals(mask, index) {
   return -1
 }
 
-function fileAllowsBareValue(file) {
-  return /(?:^|[/\\])\.env(?:\.|$)|\.(?:sh|bash|zsh|ps1|psm1)$/i.test(file)
+function languageFor(file) {
+  if (/\.(?:ps1|psm1)$/i.test(file)) return 'powershell'
+  if (/\.(?:sh|bash|zsh)$/i.test(file)) return 'shell'
+  if (/(?:^|[/\\])\.env(?:\.|$)/i.test(file)) return 'dotenv'
+  if (/\.json$/i.test(file)) return 'json'
+  if (/\.(?:js|jsx|mjs|ts|tsx)$/i.test(file)) return 'javascript'
+  return 'document'
 }
 
-export function scanText(file, text) {
-  const mask = maskNonCode(text)
+function finish(matches) {
+  return matches
+    .sort((left, right) => left.index - right.index)
+    .filter((match, index, sorted) => index === 0 || match.index !== sorted[index - 1].index)
+    .map(({ line, label }) => ({ line, label }))
+}
+
+function collectJavaScript(text, language) {
+  const { mask, quotedKeys } = lexCode(text, 'javascript')
   const matches = []
   const addMatch = (name, value, index) => {
     if (harmlessValue(value)) return
     matches.push({ index, line: lineAt(text, index), label: labelFor(name) })
   }
-  for (const token of mask.matchAll(secretTokenPattern)) {
+  if (language !== 'json') for (const token of mask.matchAll(secretTokenPattern)) {
     const name = token[1]
     const nameIndex = token.index
     const before = mask.slice(statementStart(mask, nameIndex), nameIndex)
@@ -138,29 +165,91 @@ export function scanText(file, text) {
     const lineStart = Math.max(mask.lastIndexOf('\n', nameIndex - 1), mask.lastIndexOf(';', nameIndex - 1), mask.lastIndexOf('&', nameIndex - 1), mask.lastIndexOf('|', nameIndex - 1)) + 1
     const isShell = /\b(?:export|set)\b/i.test(mask.slice(lineStart, nameIndex))
     const isPowerShell = /\$env:\s*$/i.test(mask.slice(Math.max(0, nameIndex - 6), nameIndex))
-    let operator = skipTrivia(text, nameIndex + name.length, { allowNewlines: true })
+    let operator = skipTrivia(text, nameIndex + name.length, { allowNewlines: true, language: 'javascript' })
     let kind = null
     if (mask[operator] === '=') {
       kind = isPowerShell ? 'shell' : (isDeclaration ? 'declaration' : 'assignment')
-      operator = skipTrivia(text, operator + 1, { allowNewlines: kind === 'declaration' })
+      operator = skipTrivia(text, operator + 1, { allowNewlines: true, language: 'javascript' })
     } else if (mask[operator] === ':' && isDeclaration) {
       const equals = typeAnnotationEquals(mask, operator)
       if (equals !== -1) {
         kind = 'declaration'
-        operator = skipTrivia(text, equals + 1, { allowNewlines: true })
+        operator = skipTrivia(text, equals + 1, { allowNewlines: true, language: 'javascript' })
       }
     } else if (mask[operator] === ':') {
       kind = 'object'
-      operator = skipTrivia(text, operator + 1, { allowNewlines: true })
+      operator = skipTrivia(text, operator + 1, { allowNewlines: true, language: 'javascript' })
     }
     if (!kind) continue
-    const literal = readLiteral(text, operator, isShell || isPowerShell || fileAllowsBareValue(file))
+    const literal = readLiteral(text, operator, isShell || isPowerShell, { dynamicVariables: isShell || isPowerShell })
     if (literal) addMatch(name, literal.value, nameIndex)
   }
-  return matches
-    .sort((left, right) => left.index - right.index)
-    .filter((match, index, sorted) => index === 0 || match.index !== sorted[index - 1].index)
-    .map(({ line, label }) => ({ line, label }))
+  for (const key of quotedKeys) {
+    const valueIndex = skipTrivia(text, key.valueIndex, { allowNewlines: true, language: 'javascript' })
+    const literal = readLiteral(text, valueIndex, false)
+    if (literal) addMatch(key.name, literal.value, key.index)
+  }
+  return finish(matches)
+}
+
+function collectShellLike(text, language) {
+  const { mask } = lexCode(text, language)
+  const matches = []
+  const addMatch = (name, value, index) => {
+    if (!harmlessValue(value)) matches.push({ index, line: lineAt(text, index), label: labelFor(name) })
+  }
+  for (const token of mask.matchAll(secretTokenPattern)) {
+    const name = token[1]
+    const nameIndex = token.index
+    const lineStart = Math.max(mask.lastIndexOf('\n', nameIndex - 1), mask.lastIndexOf(';', nameIndex - 1), mask.lastIndexOf('&', nameIndex - 1), mask.lastIndexOf('|', nameIndex - 1)) + 1
+    const prefix = mask.slice(lineStart, nameIndex)
+    if (!/^[\t ]*$/.test(prefix) && !/\b(?:export|set)\b/i.test(prefix)) continue
+    let operator = skipTrivia(text, nameIndex + name.length, { allowNewlines: false, language: 'shell' })
+    if (mask[operator] !== '=') continue
+    operator = skipTrivia(text, operator + 1, { allowNewlines: false, language: 'shell' })
+    const literal = readLiteral(text, operator, true, { dynamicVariables: true })
+    if (literal) addMatch(name, literal.value, nameIndex)
+  }
+  return finish(matches)
+}
+
+function collectPowerShell(text) {
+  const { mask } = lexCode(text, 'powershell')
+  const matches = []
+  const pattern = new RegExp(String.raw`\$env:\s*${secretNames}\s*=`, 'gi')
+  for (const match of mask.matchAll(pattern)) {
+    const name = match[1]
+    const equals = match.index + match[0].lastIndexOf('=')
+    const valueIndex = skipTrivia(text, equals + 1, { allowNewlines: true, language: 'powershell' })
+    const literal = readLiteral(text, valueIndex, true, { dynamicVariables: true })
+    if (literal && !harmlessValue(literal.value)) matches.push({ index: match.index + match[0].toUpperCase().indexOf(name.toUpperCase()), line: lineAt(text, match.index), label: labelFor(name) })
+  }
+  return finish(matches)
+}
+
+function collectDotenv(text) {
+  const { mask } = lexCode(text, 'shell')
+  const matches = []
+  for (const token of mask.matchAll(secretTokenPattern)) {
+    const name = token[1]
+    const nameIndex = token.index
+    const lineStart = mask.lastIndexOf('\n', nameIndex - 1) + 1
+    if (!/^[\t ]*$/.test(mask.slice(lineStart, nameIndex))) continue
+    let operator = skipTrivia(text, nameIndex + name.length, { allowNewlines: false, language: 'shell' })
+    if (mask[operator] !== '=') continue
+    operator = skipTrivia(text, operator + 1, { allowNewlines: false, language: 'shell' })
+    const literal = readLiteral(text, operator, true, { dynamicVariables: true })
+    if (literal && !harmlessValue(literal.value)) matches.push({ index: nameIndex, line: lineAt(text, nameIndex), label: labelFor(name) })
+  }
+  return finish(matches)
+}
+
+export function scanText(file, text) {
+  const language = languageFor(file)
+  if (language === 'powershell') return collectPowerShell(text)
+  if (language === 'shell') return collectShellLike(text, language)
+  if (language === 'dotenv' || language === 'document') return collectDotenv(text)
+  return collectJavaScript(text, language)
 }
 
 export function scanRepository(root = process.cwd()) {

@@ -106,3 +106,47 @@ test('security scan does not consume the next dotenv field after an empty value'
 
   assert.deepEqual(scanText('.env.example', source), [])
 })
+
+test('security scan uses language-aware matchers for quoted object keys, multiline assignments, and shell syntax', () => {
+  const key = 'SUPABASE_SERVICE_ROLE_KEY'
+  const stripe = 'STRIPE_SECRET_KEY'
+  const webhook = 'STRIPE_WEBHOOK_SECRET'
+
+  const json = `{
+  "${key}": "json-literal",
+  "${stripe}": "second-json-literal"
+}`
+  assert.deepEqual(scanText('fixture.json', json), [
+    { line: 2, label: 'Supabase service role key' },
+    { line: 3, label: 'Stripe secret key' },
+  ])
+
+  const javascript = [
+    `${key} =`,
+    '  // a non-declaration assignment can span trivia too',
+    "  'assignment-literal'",
+    `const config = { '${webhook}': 'object-literal' }`,
+  ].join('\n')
+  assert.deepEqual(scanText('fixture.js', javascript), [
+    { line: 1, label: 'Supabase service role key' },
+    { line: 4, label: 'Stripe webhook secret' },
+  ])
+
+  const powershell = [
+    '$env:stripe_secret_key =',
+    '  # comment before the literal',
+    "  'powershell-literal'",
+    '$env:STRIPE_WEBHOOK_SECRET = "$env:OTHER_SECRET"',
+  ].join('\n')
+  assert.deepEqual(scanText('fixture.ps1', powershell), [
+    { line: 1, label: 'Stripe secret key' },
+  ])
+
+  const shell = [
+    'CALLBACK=https://example.test/path; export STRIPE_SECRET_KEY=shell-literal STRIPE_WEBHOOK_SECRET="${WEBHOOK_FROM_ENV}"',
+    'export SUPABASE_SERVICE_ROLE_KEY="$SERVICE_KEY"',
+  ].join('\n')
+  assert.deepEqual(scanText('fixture.sh', shell), [
+    { line: 1, label: 'Stripe secret key' },
+  ])
+})
