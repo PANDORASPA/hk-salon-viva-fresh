@@ -2,6 +2,7 @@
   "name": "salon-poke-by-viva",
   "version": "1.0.0",
   "private": true,
+  "packageManager": "npm@10.9.2",
   "description": "SALON POKE BY VIVA - hair loss treatment booking and package site (HK)",
   "scripts": {
     "dev": "next dev",
